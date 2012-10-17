@@ -12,6 +12,6 @@ setup(
     description='Working with paired reads in BAM format',
     long_description=open('README.txt').read(),
     install_requires=[
-        "pysam >= 0.3",
+        "pysam >= 0.6",
     ],
 )

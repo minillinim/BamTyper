@@ -73,8 +73,8 @@ class BamTyperOptionsParser():
 
         elif(options.subparser_name == 'links'):
             # print summaries oly
-            BamParser = utilities.BamParser(full=options.full)
-            BamParser.parseLinks(options.bamfiles)
+            BamParser = utilities.BamParser()
+            BamParser.getLinks(options.bamfiles, full=options.full)
                             
         return 0
 
