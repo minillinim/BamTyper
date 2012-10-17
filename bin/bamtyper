@@ -1,0 +1,123 @@
+#!/usr/bin/env python
+###############################################################################
+#                                                                             #
+#    bamtyper                                                                 #
+#                                                                             #
+#    Entry point. See bamtyper/bamtyper.py for internals                      #
+#                                                                             #
+#    Copyright (C) Michael Imelfort                                           #
+#                                                                             #
+###############################################################################
+#                                                                             #
+#  888888b.                      88888888888                                  #
+#  888  "88b                         888                                      #
+#  888  .88P                         888                                      #
+#  8888888K.   8888b.  88888b.d88b.  888  888  888 88888b.   .d88b.  888d888  #
+#  888  "Y88b     "88b 888 "888 "88b 888  888  888 888 "88b d8P  Y8b 888P"    #
+#  888    888 .d888888 888  888  888 888  888  888 888  888 88888888 888      #
+#  888   d88P 888  888 888  888  888 888  Y88b 888 888 d88P Y8b.     888      #
+#  8888888P"  "Y888888 888  888  888 888   "Y88888 88888P"   "Y8888  888      #
+#                                              888 888                        #
+#                                         Y8b d88P 888                        #
+#                                         "Y88P"  888                         #
+#                                                                             #
+###############################################################################
+#                                                                             #
+#    This program is free software: you can redistribute it and/or modify     #
+#    it under the terms of the GNU General Public License as published by     #
+#    the Free Software Foundation, either version 3 of the License, or        #
+#    (at your option) any later version.                                      #
+#                                                                             #
+#    This program is distributed in the hope that it will be useful,          #
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of           #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            #
+#    GNU General Public License for more details.                             #
+#                                                                             #
+#    You should have received a copy of the GNU General Public License        #
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.     #
+#                                                                             #
+###############################################################################
+
+__author__ = "Michael Imelfort"
+__copyright__ = "Copyright 2012"
+__credits__ = ["Michael Imelfort"]
+__license__ = "GPL3"
+__version__ = "0.0.1"
+__maintainer__ = "Michael Imelfort"
+__email__ = "mike@mikeimelfort.com"
+__status__ = "Development"
+
+###############################################################################
+
+import argparse
+import sys
+
+from bamtyper import bamtyper
+
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+def printHelp():
+    print '''\
+    
+               ...::: bamtyper :::...
+                   
+    Working with the BAM, not against it...
+
+    bamtyper type      -> Parse BAM files and determine reads type
+    bamtyper links      -> Parse BAM files and get linking reads
+    
+    USE: bamtyper OPTION -h to see detailed options
+    '''
+if __name__ == '__main__':
+
+    #-------------------------------------------------
+    # intialise the options parser
+    parser = argparse.ArgumentParser(add_help=False)
+    subparsers = parser.add_subparsers(help="--", dest='subparser_name')
+
+    #-------------------------------------------------
+    # determine read type / stats based on BAM mappings
+    type_parser = subparsers.add_parser('type',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        help='parse BAM files and determine reads type',
+                                        description='Parse BAM files and determine reads type')
+    type_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
+
+    #-------------------------------------------------
+    # determine linking reads
+    links_parser = subparsers.add_parser('links',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        help='get linking reads',
+                                        description='Get linking reads')
+    links_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
+    links_parser.add_argument('-f', '--full', action="store_true", default=False, help="print all links")
+
+    #-------------------------------------------------
+    # get and check options
+    args = None
+    if(len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
+        printHelp()
+        sys.exit(0)
+    else:
+        args = parser.parse_args()
+
+    #-------------------------------------------------
+    # do what we came here to do
+    try:
+        BT_parser = bamtyper.BamTyperOptionsParser()
+        if(False):
+            import cProfile
+            cProfile.run('BT_parser.parseOptions(args)', 'prof')
+        else:        
+            BT_parser.parseOptions(args)
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
+        raise
+    
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+        
