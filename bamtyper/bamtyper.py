@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -74,8 +74,22 @@ class BamTyperOptionsParser():
         elif(options.subparser_name == 'links'):
             # print summaries oly
             BamParser = utilities.BamParser()
-            BamParser.getLinks(options.bamfiles, full=options.full)
-                            
+            if options.coverage:
+                (filtered_links, ref_lengths, total_coverages) = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=True)
+                for cid in filtered_links:
+                    print cid, filtered_links[cid] 
+                for cid in ref_lengths:
+                    line_vals = [cid]
+                    for i in range(len(options.bamfiles)):
+                        if cid in total_coverages[i]:
+                            line_vals.append(str(total_coverages[i][cid]))
+                        else:
+                            line_vals.append("0.0")
+                    print "\t".join(line_vals)
+            else:
+                filtered_links = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=False)
+                for cid in filtered_links:
+                    print cid, filtered_links[cid] 
         return 0
 
 ###############################################################################

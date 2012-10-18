@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -73,9 +73,9 @@ class BamParser:
         # Links are stored as triples (contig1, contig2, linktype)
         # There are 4 linktypes:
         # SS  <--1--- ---2--> 
-        # STARTSEND   <--1--- <--2---
-        # ES    ---1--> ---2-->
-        # EE      ---1--> <--2---
+        # SE  <--1--- <--2---
+        # ES  ---1--> ---2-->
+        # EE  ---1--> <--2---
         self.LT = enum('SS','SE','ES','EE','ERROR')
         
 #------------------------------------------------------------------------------
@@ -99,13 +99,13 @@ class BamParser:
         
         link is a link-triple"""
         if link[2] == self.LT.SS:
-            return "contig %d lies before contig %d in the opposite direction" % (link[0], link[1])
+            return str(link[0]) + " lies before " + str(link[1]) + " in the opposite direction"
         if link[2] == self.LT.SE:
-            return "contig %d lies after contig %d in the same direction" % (link[0], link[1])
+            return str(link[0]) + " lies after " + str(link[1]) + " in the same direction"
         if link[2] == self.LT.ES:
-            return "contig %d lies before contig %d in the same direction" % (link[0], link[1])
+            return str(link[0]) + " lies before " + str(link[1]) + " in the same direction"
         if link[2] == self.LT.EE:
-            return "contig %d lies after contig %d in the opposite direction" % (link[0], link[1])
+            return str(link[0]) + " lies after " + str(link[1]) + " in the opposite direction"
         return 'Who knows?'
     
     def invertLT(self, LT):
@@ -124,27 +124,46 @@ class BamParser:
 #------------------------------------------------------------------------------
 # Linking reads
 
-    def getLinks(self, bamFiles, full=False):
+    def getLinks(self, bamFiles, full=False, verbose=False, doCoverage=False):
         """Get all linking reads"""
         # first we need to know the types of reads we're dealing with
         bam_types = self.getTypes(bamFiles)
+        num_bams = len(bamFiles)
+        # print bam_types
         bam_count = 0
         all_links = []
+        total_coverages = {}
+        ref_lengths = {}
         for bf in bamFiles:
             bam_file = None
             try:
                 bam_file = pysam.Samfile(bf, 'rb')
-                all_links += self.classifyBamLinks(bam_file, bam_types[bam_count])
+                if verbose:
+                    print "    Parsing BAM '%s' (%d of %d)" % (getBamDescriptor(bam_file), (bam_count+1), num_bams)
+                if doCoverage:
+                    (links, coverage, lengths) = self.classifyBamLinks(bam_file, bam_types[bam_count], doCoverage=True)
+                    all_links += links
+                    total_coverages[bam_count] = coverage
+                    for cid in lengths:
+                        if cid not in ref_lengths:
+                            ref_lengths[cid] = lengths[cid]
+                else:
+                    all_links += self.classifyBamLinks(bam_file, bam_types[bam_count], doCoverage=False)
                 bam_count += 1
                 bam_file.close()
             except:
                 print "Unable to open BAM file",bf,"-- did you supply a SAM file instead?"
                 raise
 
-        print len(all_links)
-        self.filterLinks(all_links)
+        filtered_links = self.filterLinks(all_links, full=full)
+        if doCoverage:
+            for bam_cov in total_coverages:
+                for cid in total_coverages[bam_cov]:
+                    total_coverages[bam_cov][cid] = float(total_coverages[bam_cov][cid]) / float(ref_lengths[cid])
+            return (filtered_links, ref_lengths, total_coverages)
+        return filtered_links
 
-    def classifyBamLinks(self, bamFile, bamType):
+    def classifyBamLinks(self, bamFile, bamType, doCoverage=False):
         """Parse a bam file (handle) to extract linking reads
         
         numPaired refers to the number of mapped pairs we need before
@@ -154,9 +173,18 @@ class BamParser:
         if bamType[0] == self.OT.ERROR:
             return []
         all_links = []
+        coverages = {}
         seen_reads = {}
-        ref_lengths = bamFile.lengths
+        ref_lengths = [int(x) for x in bamFile.lengths]
+        references = bamFile.references
         for alignedRead in bamFile.fetch():
+            if doCoverage:
+                ar_name = bamFile.getrname(alignedRead.tid)
+                if ar_name not in coverages:
+                    coverages[ar_name] = 1
+                else:
+                    coverages[ar_name] += 1
+                    
             # strip off any trailing ".1, _1, /1" which may be at the end of the read id
             query = re.sub("[_/\.].$", '', alignedRead.qname)
             if query in seen_reads:
@@ -164,25 +192,19 @@ class BamParser:
                 # check to see they're on the same strand
                 # rname is deprecated in pysam >= 0.4 use tid instead!
                 if alignedRead.tid != seen_reads[query].tid:
-                    fix here
-                    if alignedRead.is_read1:
-                        print "K", seen_reads[query].is_read1 
-                        LT = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
-                        if LT != self.LT.ERROR:
-                            #print self.LT2Str(self.makeLink(alignedRead.tid, seen_reads[query].tid, LT))
-                            all_links.append(self.makeLink(alignedRead.tid, seen_reads[query].tid, LT))
-                    else:
-                        print "J", seen_reads[query].is_read1 
-                        LT = self.determineOTDifferentRefs(seen_reads[query], alignedRead, ref_lengths, bamType)
-                        if LT != self.LT.ERROR:
-                            #print self.LT2Str(self.makeLink(seen_reads[query].tid, alignedRead.tid, LT))
-                            all_links.append(self.makeLink(seen_reads[query].tid, alignedRead.tid, LT))
+                    LT = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
+                    if LT != self.LT.ERROR:
+                        #print self.LT2Str(self.makeLink(alignedRead.tid, seen_reads[query].tid, LT))
+                        all_links.append(self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT))
             else:
                 seen_reads[query] = alignedRead
     
-        return all_links
+        if(doCoverage):
+            return (all_links, coverages, dict(zip(references,ref_lengths)))
+        else:
+            return all_links
     
-    def filterLinks(self, links, minJoin=20):
+    def filterLinks(self, links, full=False, minJoin=20):
         """Take a list of link triples and filter it down to a set up unique links
         
         links is a list of link triples (c1, c2, LT)
@@ -191,6 +213,8 @@ class BamParser:
         # first we must munge the info into something useful
         links_hash = {}
         for link in links:
+            if full:
+                print self.LT2Str(link)
             # make sure the data structure is there
             if link[0] not in links_hash:
                 links_hash[link[0]] = {}
@@ -198,7 +222,6 @@ class BamParser:
                 links_hash[link[0]][link[1]] = {0:0,1:0,2:0,3:0,4:0} # 'SS':0,'SE':0,'ES':0,'EE':0,'ERROR':0
             
             links_hash[link[0]][link[1]][link[2]] += 1
-            print self.LT2Str(link), link
     
         # now go through and refine it further
         filtered_links = {}
@@ -213,6 +236,7 @@ class BamParser:
                             filtered_links[c2] = []
                         filtered_links[c1].append(c2)
                         filtered_links[c2].append(c1)
+        return filtered_links
     
     def determineOTDifferentRefs(self, ar1, ar2, lengths, bamType):
         """Determine the orientation type and insert size of two reads
@@ -224,30 +248,32 @@ class BamParser:
         I swear this is the last time I write this code!
         """
         # first check to see if the start read lies in the right position
-        adjusted_ins = 0
-        if ar1.pos <= bamType[1]:
+        adjusted_ins = bamType[1]
+        rl = ar1.rlen
+        if ar1.pos <= adjusted_ins + rl:
             # read 1 lies at the start of its contig
             r1_at_start = True
-            adjusted_ins = bamType[1] - r1_at_start 
-        elif ar1.pos >= lengths[ar1.tid] - bamType[1]:
+            adjusted_ins -= (ar1.pos + rl) 
+        elif (adjusted_ins + rl) >= (lengths[ar1.tid] - ar1.pos):
             # read 1 lies at the end of its contig
             r1_at_start = False
-            adjusted_ins = bamType[1] - (lengths[ar1.tid] - ar1.pos)
+            adjusted_ins -= (lengths[ar1.tid] - ar1.pos)
         else:
             # read 1 lies in the middle of its contig
              return self.LT.ERROR
         # now check read 2
-        if ar2.pos <= adjusted_ins:
+        if ar2.pos <= adjusted_ins + rl:
             # read 2 lies at the start of its contig
             r2_at_start = True
-        elif ar2.pos >= lengths[ar2.tid] - adjusted_ins:
+        elif (adjusted_ins + rl) >= (lengths[ar2.tid] - ar2.pos):
             # read 2 lies at the end of its contig            
             r2_at_start = False
         else:
             # read 2 lies in the middle of its contig
             return self.LT.ERROR
 
-        # no put it all together!        
+        # now put it all together!
+        # print r1_at_start, ar1.pos, ar1.is_reverse, "|", r2_at_start, ar2.pos, ar2.is_reverse, "|",     
         if r1_at_start:
             # -x-1-->
             if ar1.is_reverse:
@@ -257,20 +283,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # <--1->- -<-2--> ==> IN + SS
                         if bamType[0] == self.OT.IN:
+                            # print "0 IN + SS"
                             return self.LT.SS
                     else:
                         # <--1->- ->-2--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
+                            # print "1 SAME + SS"
                             return self.LT.SS
                 else:
                     # <--1->- <x-2---
                     if ar2.is_reverse:
                         # <--1->- <>-2--- ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
+                            # print "2 SAME + SE"
                             return self.LT.SE
                     else:
                         # <--1->- <<-2--- ==> IN + SE
                         if bamType[0] == self.OT.IN:
+                            # print "3 IN + SE"
                             return self.LT.SE
             else: # r1 agrees
                 # ->-1-->
@@ -279,23 +309,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # <--2->- ->-1--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
+                            # print "4 SAME + SS"
                             return self.LT.SS
                     else:
                         # <--2-<- ->-1--> ==> OUT + SS
                         if bamType[0] == self.OT.OUT:
-#                            print ar1.tid, ar1.pos, ar1.is_unmapped 
-#                            print ar2.tid, ar2.pos, ar2.is_unmapped
-#                            print "=======4"
+                            # print "5 OUT + SS"
                             return self.LT.SS
                 else:
                     # ---2-x> ->-1-->
                     if ar2.is_reverse:
                         # ---2-<> ->-1--> ==> OUT + SE
                         if bamType[0] == self.OT.OUT:
+                            # print "6 OUT + SE"
                             return self.LT.SE
                     else:
                         # ---2->> ->-1--> ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
+                            # print "7 SAME + SE"
                             return self.LT.SE
         else: # r1 at end
             # ---1-x>
@@ -306,20 +337,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # ---1-<> -<-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
+                            # print "8 SAME + ES"
                             return self.LT.ES
                     else:
                         # ---1-<> ->-2--> ==> OUT + ES
                         if bamType[0] == self.OT.OUT:
+                            # print "9 OUT + ES"
                             return self.LT.ES
                 else:
                     # ---1-<> <x-2---
                     if ar2.is_reverse:
                         # ---1-<> <>-2--- ==> OUT + EE
                         if bamType[0] == self.OT.OUT:
+                            # print "a OUT + EE"
                             return self.LT.EE
                     else:
                         # ---1-<> <<-2--- ==> SAME + EE 
                         if bamType[0] == self.OT.SAME:
+                            # print "b SAME + EE"
                             return self.LT.EE
             else: # r1 agrees
                 # ---1->>
@@ -328,21 +363,26 @@ class BamParser:
                     if ar2.is_reverse:
                         # ---1->> -<-2--> ==> IN + ES
                         if bamType[0] == self.OT.IN:
+                            # print "c IN + SS"
                             return self.LT.ES
                     else:
                         # ---1->> ->-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
+                            # print "d SAME + ES"
                             return self.LT.ES
                 else:
                     # ---1->> <x-2---
                     if ar2.is_reverse:
                         # ---1->> <>-2--- ==> SAME + EE
                         if bamType[0] == self.OT.SAME:
+                            # print "e SAME + EE"
                             return self.LT.EE
                     else:
                         # ---1->> <<-2--- ==> IN + EE
                         if bamType[0] == self.OT.IN:
+                            # print "f IN + EE"
                             return self.LT.EE
+        # print 
         return self.LT.ERROR
     
     def makeLink(self, rname1, rname2, LT):
@@ -380,7 +420,7 @@ class BamParser:
                 raise
         return bam_types
     
-    def classifyBamType(self, bamFile, numPaired=1000):
+    def classifyBamType(self, bamFile, numPaired=10000):
         """Parse a bam file (handle) to determine the read orientation type
         
         numPaired refers to the number of mapped pairs we need before
@@ -427,22 +467,22 @@ class BamParser:
            1. both reads are on the same reference
            2. ar1 comes before ar2
         """
-        isize = ar2.pos - ar1.pos
+        isize = ar2.pos - ar1.pos + ar1.rlen
         if ar1.is_reverse:
-            # <--
+            # <-1--
             if ar2.is_reverse:
-                # <-- <--
+                # <-1-- <-2--
                 return (self.OT.SAME, isize)
             else:
-                # <-- -->
+                # <-1-- -2-->
                 return (self.OT.OUT, isize)
         else:
             # -->
             if ar2.is_reverse:
-                # --> <--
+                # --1-> <-2--
                 return (self.OT.IN, isize)
             else:
-                # --> -->
+                # --1-> --2->
                 return (self.OT.SAME, isize)
     
 def getBamDescriptor(fullPath):

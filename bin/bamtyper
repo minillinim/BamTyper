@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -92,7 +92,8 @@ if __name__ == '__main__':
                                         help='get linking reads',
                                         description='Get linking reads')
     links_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
-    links_parser.add_argument('-f', '--full', action="store_true", default=False, help="print all links")
+    links_parser.add_argument('-v', '--verbose', action="store_true", default=False, help="print a lot of stuff")
+    links_parser.add_argument('-c', '--coverage', action="store_true", default=False, help="work out coverage")
 
     #-------------------------------------------------
     # get and check options
