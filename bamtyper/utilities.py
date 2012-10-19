@@ -205,8 +205,8 @@ class BamParser:
                 if alignedRead.tid != seen_reads[query].tid:
                     (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
                     if LT != self.LT.ERROR:
-                        #print self.LT2Str(self.makeLink(alignedRead.tid, seen_reads[query].tid, LT))
-                        all_links.append(self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap))
+                        link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
+                        all_links.append(link)
             else:
                 seen_reads[query] = alignedRead
     
@@ -266,34 +266,42 @@ class BamParser:
         I swear this is the last time I write this code!
         """
         # first check to see if the start read lies in the right position
-        max_ins = bamType[1] + (3 * bamType[2]) # mean + 3 * stdev
-        adjusted_ins = bamType[1]
         rl = ar1.rlen
+        # max_ins should* be: mean + 3 * stdev but assemblers like SaSSY and Velvet
+        # can produce nodes which overlap at the ends. So we need to account for negative gaps
+        # thus we choose max ins = mean + 3 * stdev + rl 
+        max_ins = bamType[1] + (3 * bamType[2]) + rl 
+        
+        adjusted_ins = bamType[1]
+        #print max_ins, ar1.tid, ar1.pos, lengths[ar1.tid], ar1.is_reverse, ar2.tid, ar2.pos, lengths[ar2.tid], ar2.is_reverse  
         if ar1.pos <= ( max_ins - 2 * rl ):
             # read 1 lies at the start of its contig
             r1_at_start = True
             adjusted_ins -= (ar1.pos + rl) 
             max_ins -= (ar1.pos + rl)
-        elif ar1.pos >= (lengths[ar1.tid] - max_ins + rl):
+        elif ar1.pos >= ( lengths[ar1.tid] - max_ins + rl ):
             # read 1 lies at the end of its contig
             r1_at_start = False
             adjusted_ins -= (lengths[ar1.tid] - ar1.pos)
-            max_ins -= (lengths[ar1.tid] - ar1.pos + 1)
+            max_ins -= (lengths[ar1.tid] - ar1.pos)
         else:
             # read 1 lies in the middle of its contig
             return (0, self.LT.ERROR)
+        #print adjusted_ins, ( max_ins - rl ), (lengths[ar2.tid] - max_ins)
+        
         # now check read 2
-        if ar2.pos <= ( max_ins - 2 * rl ):
+        if ar2.pos <= ( max_ins - rl ):
             # read 2 lies at the start of its contig
             r2_at_start = True
             adjusted_ins -= (ar2.pos + rl) 
-        elif ar2.pos >= (lengths[ar2.tid] - max_ins + rl):
+        elif ar2.pos >= ( lengths[ar2.tid] - max_ins ):
             # read 2 lies at the end of its contig            
             r2_at_start = False
             adjusted_ins -= (lengths[ar2.tid] - ar2.pos)
         else:
             # read 2 lies in the middle of its contig
             return (0, self.LT.ERROR)
+        #print adjusted_ins, max_ins
 
         # now put it all together!
         # print r1_at_start, ar1.pos, ar1.is_reverse, "|", r2_at_start, ar2.pos, ar2.is_reverse, "|",     
@@ -306,24 +314,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # <--1->- -<-2--> ==> IN + SS
                         if bamType[0] == self.OT.IN:
-                            # print "0 IN + SS"
+                            #print "0 IN + SS"
                             return (adjusted_ins, self.LT.SS)
                     else:
                         # <--1->- ->-2--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
-                            # print "1 SAME + SS"
+                            #print "1 SAME + SS"
                             return (adjusted_ins, self.LT.SS)
                 else:
                     # <--1->- <x-2---
                     if ar2.is_reverse:
                         # <--1->- <>-2--- ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
-                            # print "2 SAME + SE"
+                            #print "2 SAME + SE"
                             return (adjusted_ins, self.LT.SE)
                     else:
                         # <--1->- <<-2--- ==> IN + SE
                         if bamType[0] == self.OT.IN:
-                            # print "3 IN + SE"
+                            #print "3 IN + SE"
                             return (adjusted_ins, self.LT.SE)
             else: # r1 agrees
                 # ->-1-->
@@ -332,24 +340,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # <--2->- ->-1--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
-                            # print "4 SAME + SS"
+                            #print "4 SAME + SS"
                             return (adjusted_ins, self.LT.SS)
                     else:
                         # <--2-<- ->-1--> ==> OUT + SS
                         if bamType[0] == self.OT.OUT:
-                            # print "5 OUT + SS"
+                            #print "5 OUT + SS"
                             return (adjusted_ins, self.LT.SS)
                 else:
                     # ---2-x> ->-1-->
                     if ar2.is_reverse:
                         # ---2-<> ->-1--> ==> OUT + SE
                         if bamType[0] == self.OT.OUT:
-                            # print "6 OUT + SE"
+                            #print "6 OUT + SE"
                             return (adjusted_ins, self.LT.SE)
                     else:
                         # ---2->> ->-1--> ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
-                            # print "7 SAME + SE"
+                            #print "7 SAME + SE"
                             return (adjusted_ins, self.LT.SE)
         else: # r1 at end
             # ---1-x>
@@ -360,24 +368,24 @@ class BamParser:
                     if ar2.is_reverse:
                         # ---1-<> -<-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
-                            # print "8 SAME + ES"
+                            #print "8 SAME + ES"
                             return (adjusted_ins, self.LT.ES)
                     else:
                         # ---1-<> ->-2--> ==> OUT + ES
                         if bamType[0] == self.OT.OUT:
-                            # print "9 OUT + ES"
+                            #print "9 OUT + ES"
                             return (adjusted_ins, self.LT.ES)
                 else:
                     # ---1-<> <x-2---
                     if ar2.is_reverse:
                         # ---1-<> <>-2--- ==> OUT + EE
                         if bamType[0] == self.OT.OUT:
-                            # print "a OUT + EE"
+                            #print "a OUT + EE"
                             return (adjusted_ins, self.LT.EE)
                     else:
                         # ---1-<> <<-2--- ==> SAME + EE 
                         if bamType[0] == self.OT.SAME:
-                            # print "b SAME + EE"
+                            #print "b SAME + EE"
                             return (adjusted_ins, self.LT.EE)
             else: # r1 agrees
                 # ---1->>
@@ -386,26 +394,26 @@ class BamParser:
                     if ar2.is_reverse:
                         # ---1->> -<-2--> ==> IN + ES
                         if bamType[0] == self.OT.IN:
-                            # print "c IN + SS"
+                            #print "c IN + SS"
                             return (adjusted_ins, self.LT.ES)
                     else:
                         # ---1->> ->-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
-                            # print "d SAME + ES"
+                            #print "d SAME + ES"
                             return (adjusted_ins, self.LT.ES)
                 else:
                     # ---1->> <x-2---
                     if ar2.is_reverse:
                         # ---1->> <>-2--- ==> SAME + EE
                         if bamType[0] == self.OT.SAME:
-                            # print "e SAME + EE"
+                            #print "e SAME + EE"
                             return (adjusted_ins, self.LT.EE)
                     else:
                         # ---1->> <<-2--- ==> IN + EE
                         if bamType[0] == self.OT.IN:
-                            # print "f IN + EE"
+                            #print "f IN + EE"
                             return (adjusted_ins, self.LT.EE)
-        # print 
+        #print 
         return (0, self.LT.ERROR)
     
     def makeLink(self, rname1, rname2, LT, gap):
