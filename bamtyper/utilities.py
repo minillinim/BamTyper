@@ -19,7 +19,7 @@
 #  8888888P"  "Y888888 888  888  888 888   "Y88888 88888P"   "Y8888  888      #
 #                                              888 888                        #
 #                                         Y8b d88P 888                        #
-#                                         "Y88P"  888                         #
+#                                          "Y88P"  888                        #
 #                                                                             #
 ###############################################################################
 #                                                                             #
@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -50,7 +50,7 @@ __status__ = "Development"
 ###############################################################################
 import os
 import re
-import numpy
+import numpy as np
 
 import pysam
 
@@ -94,18 +94,29 @@ class BamParser:
 #------------------------------------------------------------------------------
 # Managing linking types
 
-    def LT2Str(self, link):
+    def LT2Str(self, link, terse=False):
         """For the humans!
         
-        link is a link-triple"""
+        link is a link-tuple"""
+
+        if terse:
+            if link == self.LT.SS:
+                return "SS"
+            if link == self.LT.SE:
+                return "SE"
+            if link == self.LT.ES:
+                return "ES"
+            if link == self.LT.EE:
+                return "EE"
+            return "??"           
         if link[2] == self.LT.SS:
-            return str(link[0]) + " lies before " + str(link[1]) + " in the opposite direction"
+            return str(link[0]) + " lies before " + str(link[1]) + " in the opposite direction with gap "+str(link[3])
         if link[2] == self.LT.SE:
-            return str(link[0]) + " lies after " + str(link[1]) + " in the same direction"
+            return str(link[0]) + " lies after " + str(link[1]) + " in the same direction with gap "+str(link[3])
         if link[2] == self.LT.ES:
-            return str(link[0]) + " lies before " + str(link[1]) + " in the same direction"
+            return str(link[0]) + " lies before " + str(link[1]) + " in the same direction with gap "+str(link[3])
         if link[2] == self.LT.EE:
-            return str(link[0]) + " lies after " + str(link[1]) + " in the opposite direction"
+            return str(link[0]) + " lies after " + str(link[1]) + " in the opposite direction with gap "+str(link[3])
         return 'Who knows?'
     
     def invertLT(self, LT):
@@ -124,12 +135,12 @@ class BamParser:
 #------------------------------------------------------------------------------
 # Linking reads
 
-    def getLinks(self, bamFiles, full=False, verbose=False, doCoverage=False):
+    def getLinks(self, bamFiles, full=False, verbose=False, doCoverage=False, minJoin=0):
         """Get all linking reads"""
         # first we need to know the types of reads we're dealing with
         bam_types = self.getTypes(bamFiles)
         num_bams = len(bamFiles)
-        # print bam_types
+        #print bam_types
         bam_count = 0
         all_links = []
         total_coverages = {}
@@ -155,7 +166,7 @@ class BamParser:
                 print "Unable to open BAM file",bf,"-- did you supply a SAM file instead?"
                 raise
 
-        filtered_links = self.filterLinks(all_links, full=full)
+        filtered_links = self.filterLinks(all_links, full=full, minJoin=minJoin)
         if doCoverage:
             for bam_cov in total_coverages:
                 for cid in total_coverages[bam_cov]:
@@ -192,10 +203,10 @@ class BamParser:
                 # check to see they're on the same strand
                 # rname is deprecated in pysam >= 0.4 use tid instead!
                 if alignedRead.tid != seen_reads[query].tid:
-                    LT = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
+                    (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
                     if LT != self.LT.ERROR:
                         #print self.LT2Str(self.makeLink(alignedRead.tid, seen_reads[query].tid, LT))
-                        all_links.append(self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT))
+                        all_links.append(self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap))
             else:
                 seen_reads[query] = alignedRead
     
@@ -207,35 +218,42 @@ class BamParser:
     def filterLinks(self, links, full=False, minJoin=20):
         """Take a list of link triples and filter it down to a set up unique links
         
-        links is a list of link triples (c1, c2, LT)
+        links is a list of link tuples (c1, c2, LT, gap)
         minJoin denotes how many links must be present to confirm
         """
         # first we must munge the info into something useful
-        links_hash = {}
+        gaps_hash = {}
         for link in links:
             if full:
                 print self.LT2Str(link)
             # make sure the data structure is there
-            if link[0] not in links_hash:
-                links_hash[link[0]] = {}
-            if link[1] not in links_hash[link[0]]:
-                links_hash[link[0]][link[1]] = {0:0,1:0,2:0,3:0,4:0} # 'SS':0,'SE':0,'ES':0,'EE':0,'ERROR':0
-            
-            links_hash[link[0]][link[1]][link[2]] += 1
+            if link[0] not in gaps_hash:
+                gaps_hash[link[0]] = {}
+            if link[1] not in gaps_hash[link[0]]:
+                gaps_hash[link[0]][link[1]] = {0:[],1:[],2:[],3:[],4:[]}
+            gaps_hash[link[0]][link[1]][link[2]].append(link[3])
     
         # now go through and refine it further
         filtered_links = {}
-        for c1 in links_hash:
-            for c2 in links_hash[c1]:
-                for lt in links_hash[c1][c2]:
-                    if links_hash[c1][c2][lt] >= minJoin:
-                        # we accept the link as real
-                        if c1 not in filtered_links:
-                            filtered_links[c1] = []
-                        if c2 not in filtered_links:
-                            filtered_links[c2] = []
-                        filtered_links[c1].append(c2)
-                        filtered_links[c2].append(c1)
+        for c1 in gaps_hash:
+            for c2 in gaps_hash[c1]:
+                most_common_lt_count = 0
+                most_common_lt = self.LT.ERROR
+                for lt in gaps_hash[c1][c2]:
+                    if len(gaps_hash[c1][c2][lt]) >= minJoin:
+                        # we only want one type of link per contig pair
+                        if len(gaps_hash[c1][c2][lt]) > most_common_lt_count:
+                            most_common_lt_count = len(gaps_hash[c1][c2][lt])
+                            most_common_lt = lt
+                if most_common_lt_count != 0:
+                    # we accept the link as real
+                    if c1 not in filtered_links:
+                        filtered_links[c1] = []
+                    if c2 not in filtered_links:
+                        filtered_links[c2] = []
+                    # store linking contig + number of links
+                    filtered_links[c1].append((c2, most_common_lt_count, most_common_lt,np.mean(gaps_hash[c1][c2][most_common_lt])))
+                    filtered_links[c2].append((c1, most_common_lt_count, self.invertLT(most_common_lt),np.mean(gaps_hash[c1][c2][most_common_lt])))
         return filtered_links
     
     def determineOTDifferentRefs(self, ar1, ar2, lengths, bamType):
@@ -248,29 +266,34 @@ class BamParser:
         I swear this is the last time I write this code!
         """
         # first check to see if the start read lies in the right position
+        max_ins = bamType[1] + (3 * bamType[2]) # mean + 3 * stdev
         adjusted_ins = bamType[1]
         rl = ar1.rlen
-        if ar1.pos <= adjusted_ins + rl:
+        if ar1.pos <= ( max_ins - 2 * rl ):
             # read 1 lies at the start of its contig
             r1_at_start = True
             adjusted_ins -= (ar1.pos + rl) 
-        elif (adjusted_ins + rl) >= (lengths[ar1.tid] - ar1.pos):
+            max_ins -= (ar1.pos + rl)
+        elif ar1.pos >= (lengths[ar1.tid] - max_ins + rl):
             # read 1 lies at the end of its contig
             r1_at_start = False
             adjusted_ins -= (lengths[ar1.tid] - ar1.pos)
+            max_ins -= (lengths[ar1.tid] - ar1.pos + 1)
         else:
             # read 1 lies in the middle of its contig
-             return self.LT.ERROR
+            return (0, self.LT.ERROR)
         # now check read 2
-        if ar2.pos <= adjusted_ins + rl:
+        if ar2.pos <= ( max_ins - 2 * rl ):
             # read 2 lies at the start of its contig
             r2_at_start = True
-        elif (adjusted_ins + rl) >= (lengths[ar2.tid] - ar2.pos):
+            adjusted_ins -= (ar2.pos + rl) 
+        elif ar2.pos >= (lengths[ar2.tid] - max_ins + rl):
             # read 2 lies at the end of its contig            
             r2_at_start = False
+            adjusted_ins -= (lengths[ar2.tid] - ar2.pos)
         else:
             # read 2 lies in the middle of its contig
-            return self.LT.ERROR
+            return (0, self.LT.ERROR)
 
         # now put it all together!
         # print r1_at_start, ar1.pos, ar1.is_reverse, "|", r2_at_start, ar2.pos, ar2.is_reverse, "|",     
@@ -284,24 +307,24 @@ class BamParser:
                         # <--1->- -<-2--> ==> IN + SS
                         if bamType[0] == self.OT.IN:
                             # print "0 IN + SS"
-                            return self.LT.SS
+                            return (adjusted_ins, self.LT.SS)
                     else:
                         # <--1->- ->-2--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
                             # print "1 SAME + SS"
-                            return self.LT.SS
+                            return (adjusted_ins, self.LT.SS)
                 else:
                     # <--1->- <x-2---
                     if ar2.is_reverse:
                         # <--1->- <>-2--- ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
                             # print "2 SAME + SE"
-                            return self.LT.SE
+                            return (adjusted_ins, self.LT.SE)
                     else:
                         # <--1->- <<-2--- ==> IN + SE
                         if bamType[0] == self.OT.IN:
                             # print "3 IN + SE"
-                            return self.LT.SE
+                            return (adjusted_ins, self.LT.SE)
             else: # r1 agrees
                 # ->-1-->
                 if r2_at_start:
@@ -310,24 +333,24 @@ class BamParser:
                         # <--2->- ->-1--> ==> SAME + SS
                         if bamType[0] == self.OT.SAME:
                             # print "4 SAME + SS"
-                            return self.LT.SS
+                            return (adjusted_ins, self.LT.SS)
                     else:
                         # <--2-<- ->-1--> ==> OUT + SS
                         if bamType[0] == self.OT.OUT:
                             # print "5 OUT + SS"
-                            return self.LT.SS
+                            return (adjusted_ins, self.LT.SS)
                 else:
                     # ---2-x> ->-1-->
                     if ar2.is_reverse:
                         # ---2-<> ->-1--> ==> OUT + SE
                         if bamType[0] == self.OT.OUT:
                             # print "6 OUT + SE"
-                            return self.LT.SE
+                            return (adjusted_ins, self.LT.SE)
                     else:
                         # ---2->> ->-1--> ==> SAME + SE
                         if bamType[0] == self.OT.SAME:
                             # print "7 SAME + SE"
-                            return self.LT.SE
+                            return (adjusted_ins, self.LT.SE)
         else: # r1 at end
             # ---1-x>
             if ar1.is_reverse:
@@ -338,24 +361,24 @@ class BamParser:
                         # ---1-<> -<-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
                             # print "8 SAME + ES"
-                            return self.LT.ES
+                            return (adjusted_ins, self.LT.ES)
                     else:
                         # ---1-<> ->-2--> ==> OUT + ES
                         if bamType[0] == self.OT.OUT:
                             # print "9 OUT + ES"
-                            return self.LT.ES
+                            return (adjusted_ins, self.LT.ES)
                 else:
                     # ---1-<> <x-2---
                     if ar2.is_reverse:
                         # ---1-<> <>-2--- ==> OUT + EE
                         if bamType[0] == self.OT.OUT:
                             # print "a OUT + EE"
-                            return self.LT.EE
+                            return (adjusted_ins, self.LT.EE)
                     else:
                         # ---1-<> <<-2--- ==> SAME + EE 
                         if bamType[0] == self.OT.SAME:
                             # print "b SAME + EE"
-                            return self.LT.EE
+                            return (adjusted_ins, self.LT.EE)
             else: # r1 agrees
                 # ---1->>
                 if r2_at_start:
@@ -364,33 +387,33 @@ class BamParser:
                         # ---1->> -<-2--> ==> IN + ES
                         if bamType[0] == self.OT.IN:
                             # print "c IN + SS"
-                            return self.LT.ES
+                            return (adjusted_ins, self.LT.ES)
                     else:
                         # ---1->> ->-2--> ==> SAME + ES
                         if bamType[0] == self.OT.SAME:
                             # print "d SAME + ES"
-                            return self.LT.ES
+                            return (adjusted_ins, self.LT.ES)
                 else:
                     # ---1->> <x-2---
                     if ar2.is_reverse:
                         # ---1->> <>-2--- ==> SAME + EE
                         if bamType[0] == self.OT.SAME:
                             # print "e SAME + EE"
-                            return self.LT.EE
+                            return (adjusted_ins, self.LT.EE)
                     else:
                         # ---1->> <<-2--- ==> IN + EE
                         if bamType[0] == self.OT.IN:
                             # print "f IN + EE"
-                            return self.LT.EE
+                            return (adjusted_ins, self.LT.EE)
         # print 
-        return self.LT.ERROR
+        return (0, self.LT.ERROR)
     
-    def makeLink(self, rname1, rname2, LT):
+    def makeLink(self, rname1, rname2, LT, gap):
         """Consistent interface for naming links"""
         if rname1 < rname2:
-            return (rname1, rname2, LT)
+            return (rname1, rname2, LT, gap)
         else:
-            return (rname2, rname1, self.invertLT(LT))
+            return (rname2, rname1, self.invertLT(LT), gap)
         
 #------------------------------------------------------------------------------
 # Working out read types
@@ -409,10 +432,10 @@ class BamParser:
                 bam_file = pysam.Samfile(bf, 'rb')
                 if verbose:
                     print "Determining OT for BAM '%s'" % (getBamDescriptor(bf))
-                (OT,ins) = self.classifyBamType(bam_file)
+                (OT,ins,std) = self.classifyBamType(bam_file)
                 if verbose:
-                    print "Orientation: %s Insert: %d" % (self.OT2Str(OT), ins) 
-                bam_types[bam_count] = (OT,ins)                
+                    print "Orientation: %s Insert: %d, Stdev: %d" % (self.OT2Str(OT), ins, std) 
+                bam_types[bam_count] = (OT,ins,std)                
                 bam_count += 1
                 bam_file.close()
             except:
@@ -455,7 +478,7 @@ class BamParser:
         cutoff = int(num_stored * 0.9)
         for OT in OTs:
             if len(OTs[OT]) > cutoff:
-                return (OT, numpy.median(OTs[OT]))
+                return (OT, int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
         
         # return garbage
         return (self.OT.ERROR, 0)

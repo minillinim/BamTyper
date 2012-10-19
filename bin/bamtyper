@@ -90,10 +90,11 @@ if __name__ == '__main__':
     links_parser = subparsers.add_parser('links',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         help='get linking reads',
-                                        description='Get linking reads')
+                                        description='Get linking reads + coverages')
     links_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
     links_parser.add_argument('-v', '--verbose', action="store_true", default=False, help="print a lot of stuff")
-    links_parser.add_argument('-c', '--coverage', action="store_true", default=False, help="work out coverage")
+    links_parser.add_argument('-c', '--coverage', action="store_true", default=False, help="calculate coverage for each reference")
+    links_parser.add_argument('-m', '--min', default=0, help="minimum number of links to report. 0 for all links")
 
     #-------------------------------------------------
     # get and check options

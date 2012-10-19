@@ -67,29 +67,35 @@ class BamTyperOptionsParser():
     def parseOptions(self, options ):
 
         if(options.subparser_name == 'type'):
-            # print summaries oly
+            # Work out the read orientation type and return
             BamParser = utilities.BamParser()
             BamParser.getTypes(options.bamfiles, verbose=True)
 
         elif(options.subparser_name == 'links'):
-            # print summaries oly
+            # Calculate linking reads and possibly coverages
             BamParser = utilities.BamParser()
             if options.coverage:
-                (filtered_links, ref_lengths, total_coverages) = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=True)
+                (filtered_links, ref_lengths, total_coverages) = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=True, minJoin=options.min)
                 for cid in filtered_links:
-                    print cid, filtered_links[cid] 
+                    print cid, 
+                    for fl in filtered_links[cid]: 
+                        print ", [",fl[0],",",fl[1],",",BamParser.LT2Str(fl[2], terse=True),", %0.0f ]" % fl[3],
+                    print 
                 for cid in ref_lengths:
                     line_vals = [cid]
                     for i in range(len(options.bamfiles)):
                         if cid in total_coverages[i]:
-                            line_vals.append(str(total_coverages[i][cid]))
+                            line_vals.append("%0.4f" %total_coverages[i][cid])
                         else:
                             line_vals.append("0.0")
                     print "\t".join(line_vals)
             else:
-                filtered_links = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=False)
+                filtered_links = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=False, minJoin=options.min)
                 for cid in filtered_links:
-                    print cid, filtered_links[cid] 
+                    print cid, 
+                    for fl in filtered_links[cid]: 
+                        print ", [",fl[0],",",fl[1],",",BamParser.LT2Str(fl[2], terse=True),", %0.0f ]" % fl[3],
+                    print 
         return 0
 
 ###############################################################################
