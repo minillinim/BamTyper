@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='BamTyper',
-    version='0.1.2',
+    version='0.1.3',
     author='Michael Imelfort',
     author_email='mike@mikeimelfort.com',
     packages=['bamtyper', 'bamtyper.test'],
