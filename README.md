@@ -1,15 +1,15 @@
-'                                                                             
-'  888888b.                      88888888888                                  
-'  888  "88b                         888                                      
-'  888  .88P                         888                                      
-'  8888888K.   8888b.  88888b.d88b.  888  888  888 88888b.   .d88b.  888d888  
-'  888  "Y88b     "88b 888 "888 "88b 888  888  888 888 "88b d8P  Y8b 888P"    
-'  888    888 .d888888 888  888  888 888  888  888 888  888 88888888 888      
-'  888   d88P 888  888 888  888  888 888  Y88b 888 888 d88P Y8b.     888      
-'  8888888P"  "Y888888 888  888  888 888   "Y88888 88888P"   "Y8888  888      
-'                                              888 888                        
-'                                         Y8b d88P 888                        
-'                                         "Y88P"  888                         
+                                                                               
+    888888b.                      88888888888                                  
+    888  "88b                         888                                      
+    888  .88P                         888                                      
+    8888888K.   8888b.  88888b.d88b.  888  888  888 88888b.   .d88b.  888d888  
+    888  "Y88b     "88b 888 "888 "88b 888  888  888 888 "88b d8P  Y8b 888P"    
+    888    888 .d888888 888  888  888 888  888  888 888  888 88888888 888      
+    888   d88P 888  888 888  888  888 888  Y88b 888 888 d88P Y8b.     888      
+    8888888P"  "Y888888 888  888  888 888   "Y88888 88888P"   "Y8888  888      
+                                                888 888                        
+                                           Y8b d88P 888                        
+                                            "Y88P"  888                         
                                                                              
 
 # Overview
@@ -48,7 +48,7 @@ $ pip install BamTyper
                         stdev - standard deviation of insert size      
 
 ###Get linking pairs:
-#!/usr/bin/env python
+    #!/usr/bin/env python
     from bamtyper.utilities import BamParser as BTBP
     BP = BTBP()
     (links, ref_lengths, coverages) = BP.getLinks(bamFiles, doCoverage=True)
