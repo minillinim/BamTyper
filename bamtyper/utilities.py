@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -150,7 +150,7 @@ class BamParser:
             try:
                 bam_file = pysam.Samfile(bf, 'rb')
                 if verbose:
-                    print "    Parsing BAM '%s' (%d of %d)" % (getBamDescriptor(bam_file), (bam_count+1), num_bams)
+                    print "    Parsing BAM '%s' (%d of %d)" % (getBamDescriptor(bf), (bam_count+1), num_bams)
                 if doCoverage:
                     (links, coverage, lengths) = self.classifyBamLinks(bam_file, bam_types[bam_count], doCoverage=True)
                     all_links += links

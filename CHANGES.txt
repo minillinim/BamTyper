@@ -1,3 +1,4 @@
 v0.0.1, 17/10/2012 -- First build
 v0.1.0, 18/10/2012 -- Working!
 v0.1.1, 19/10/2012 -- Accurately estimte gaps. Doc fixups
+v0.1.2, 19/10/2012 -- Small bug fix with printing bam names
