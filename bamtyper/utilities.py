@@ -188,13 +188,13 @@ class BamParser:
         seen_reads = {}
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
-        for alignedRead in bamFile.fetch():
+	for alignedRead in bamFile.fetch():
             if doCoverage:
                 ar_name = bamFile.getrname(alignedRead.tid)
-                if ar_name not in coverages:
-                    coverages[ar_name] = 1
-                else:
+                try:
                     coverages[ar_name] += 1
+                except KeyError:
+                    coverages[ar_name] = 1
                     
             # strip off any trailing ".1, _1, /1" which may be at the end of the read id
             query = re.sub("[_/\.].$", '', alignedRead.qname)
