@@ -188,27 +188,55 @@ class BamParser:
         seen_reads = {}
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
-	for alignedRead in bamFile.fetch():
-            if doCoverage:
-                ar_name = bamFile.getrname(alignedRead.tid)
-                try:
-                    coverages[ar_name] += 1
-                except KeyError:
-                    coverages[ar_name] = 1
-                    
-            # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-            query = re.sub("[_/\.].$", '', alignedRead.qname)
-            if query in seen_reads:
-                # we have a pair!
-                # check to see they're on the same strand
-                # rname is deprecated in pysam >= 0.4 use tid instead!
-                if alignedRead.tid != seen_reads[query].tid:
-                    (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
-                    if LT != self.LT.ERROR:
-                        link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
-                        all_links.append(link)
-            else:
-                seen_reads[query] = alignedRead
+        ccount = 0
+        tcount = 0
+        from time import time
+        time0 = time()
+        sc0 = 0
+        sc1 = 0
+        sc2 = 0
+        point0 = 0
+        point1 = 0
+        point2 = time()
+        for reference, length in zip(bamFile.references, bamFile.lengths):
+            rl = ReadLoader()
+            bamFile.fetch(reference, 0, length, callback = rl )
+            for alignedRead in rl.alignedReads:
+                ccount += 1
+                point0 = time()
+                sc2 += point0 - point2
+                if ccount > 1000000:
+                    tcount += ccount
+                    ccount = 0
+                    print tcount, time()-time0, sc0, sc1, sc2
+                    time0 = time()
+                    sc0 = 0
+                    sc1 = 0
+                    sc2 = 0
+                if doCoverage:
+                    ar_name = bamFile.getrname(alignedRead.tid)
+                    try:
+                        coverages[ar_name] += 1
+                    except KeyError:
+                        coverages[ar_name] = 1
+    
+                point1 = time()
+                sc0 += point1 - point0
+                # strip off any trailing ".1, _1, /1" which may be at the end of the read id
+                query = re.sub("[_/\.].$", '', alignedRead.qname)
+                if query in seen_reads:
+                    # we have a pair!
+                    # check to see they're on the same strand
+                    # rname is deprecated in pysam >= 0.4 use tid instead!
+                    if alignedRead.tid != seen_reads[query].tid:
+                        (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
+                        if LT != self.LT.ERROR:
+                            link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
+                            all_links.append(link)
+                else:
+                    seen_reads[query] = alignedRead
+                point2 = time()
+                sc1 += point2 - point1
     
         if(doCoverage):
             return (all_links, coverages, dict(zip(references,ref_lengths)))
@@ -528,3 +556,20 @@ def enum(*sequential, **named):
 ###############################################################################
 ###############################################################################
 ###############################################################################
+
+class ReadLoader:
+    """AUX: Call back for getting aligned reads
+    
+    Used in conjunction with pysam.fetch 
+    """
+    def __init__(self):
+        self.alignedReads = []
+        
+    def __call__(self, alignment):
+        self.alignedReads.append(alignment)
+
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+
