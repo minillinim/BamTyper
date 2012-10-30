@@ -4,3 +4,4 @@ v0.1.1, 19/10/2012 -- Accurately estimte gaps. Doc fixups
 v0.1.2, 19/10/2012 -- Small bug fix with printing bam names
 v0.1.3, 19/10/2012 -- Copes with slightly overlapping contigs when looking for links
 v0.1.4, 28/10/2012 -- Changed fetch behaviour to aavoid pysam issues
+v0.1.5, 30/10/2012 -- Changed fetch behaviour to aavoid pysam issues again!
