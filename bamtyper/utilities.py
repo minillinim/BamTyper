@@ -42,13 +42,14 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
 
 ###############################################################################
 import os
+import sys
 import re
 import numpy as np
 
@@ -77,6 +78,12 @@ class BamParser:
         # ES  ---1--> ---2-->
         # EE  ---1--> <--2---
         self.LT = enum('SS','SE','ES','EE','ERROR')
+        
+        self.LTInverter = {self.LT.SS:self.LT.SS, 
+                           self.LT.SE:self.LT.ES, 
+                           self.LT.ES:self.LT.SE, 
+                           self.LT.EE:self.LT.EE,
+                           self.LT.ERROR:self.LT.ERROR}
         
 #------------------------------------------------------------------------------
 # Managing orientation types
@@ -118,19 +125,6 @@ class BamParser:
         if link[2] == self.LT.EE:
             return str(link[0]) + " lies after " + str(link[1]) + " in the opposite direction with gap "+str(link[3])
         return 'Who knows?'
-    
-    def invertLT(self, LT):
-        """Reverse the contigs == invert the link type"""
-        if LT == self.LT.SS:
-            return self.LT.SS 
-        if LT == self.LT.SE:
-            return self.LT.ES 
-        if LT == self.LT.ES:
-            return self.LT.SE 
-        if LT == self.LT.EE:
-            return self.LT.EE 
-        return self.LT.ERROR
-        
 
 #------------------------------------------------------------------------------
 # Linking reads
@@ -188,31 +182,10 @@ class BamParser:
         seen_reads = {}
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
-        ccount = 0
-        tcount = 0
-        from time import time
-        time0 = time()
-        sc0 = 0
-        sc1 = 0
-        sc2 = 0
-        point0 = 0
-        point1 = 0
-        point2 = time()
         for reference, length in zip(bamFile.references, bamFile.lengths):
             rl = ReadLoader()
             bamFile.fetch(reference, 0, length, callback = rl )
             for alignedRead in rl.alignedReads:
-                ccount += 1
-                point0 = time()
-                sc2 += point0 - point2
-                if ccount > 1000000:
-                    tcount += ccount
-                    ccount = 0
-                    print tcount, time()-time0, sc0, sc1, sc2
-                    time0 = time()
-                    sc0 = 0
-                    sc1 = 0
-                    sc2 = 0
                 if doCoverage:
                     ar_name = bamFile.getrname(alignedRead.tid)
                     try:
@@ -220,8 +193,6 @@ class BamParser:
                     except KeyError:
                         coverages[ar_name] = 1
     
-                point1 = time()
-                sc0 += point1 - point0
                 # strip off any trailing ".1, _1, /1" which may be at the end of the read id
                 query = re.sub("[_/\.].$", '', alignedRead.qname)
                 if query in seen_reads:
@@ -235,8 +206,6 @@ class BamParser:
                             all_links.append(link)
                 else:
                     seen_reads[query] = alignedRead
-                point2 = time()
-                sc1 += point2 - point1
     
         if(doCoverage):
             return (all_links, coverages, dict(zip(references,ref_lengths)))
@@ -281,7 +250,7 @@ class BamParser:
                         filtered_links[c2] = []
                     # store linking contig + number of links
                     filtered_links[c1].append((c2, most_common_lt_count, most_common_lt,np.mean(gaps_hash[c1][c2][most_common_lt])))
-                    filtered_links[c2].append((c1, most_common_lt_count, self.invertLT(most_common_lt),np.mean(gaps_hash[c1][c2][most_common_lt])))
+                    filtered_links[c2].append((c1, most_common_lt_count, self.LTInverter[most_common_lt],np.mean(gaps_hash[c1][c2][most_common_lt])))
         return filtered_links
     
     def determineOTDifferentRefs(self, ar1, ar2, lengths, bamType):
@@ -449,7 +418,7 @@ class BamParser:
         if rname1 < rname2:
             return (rname1, rname2, LT, gap)
         else:
-            return (rname2, rname1, self.invertLT(LT), gap)
+            return (rname2, rname1, self.LTInverter[LT], gap)
         
 #------------------------------------------------------------------------------
 # Working out read types
@@ -572,4 +541,3 @@ class ReadLoader:
 ###############################################################################
 ###############################################################################
 ###############################################################################
-
