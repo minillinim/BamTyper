@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -189,9 +189,9 @@ class BamParser:
                 if doCoverage:
                     ar_name = bamFile.getrname(alignedRead.tid)
                     try:
-                        coverages[ar_name] += 1
+                        coverages[ar_name] += 1.0
                     except KeyError:
-                        coverages[ar_name] = 1
+                        coverages[ar_name] = 1.0
     
                 # strip off any trailing ".1, _1, /1" which may be at the end of the read id
                 query = re.sub("[_/\.].$", '', alignedRead.qname)
@@ -457,26 +457,30 @@ class BamParser:
         seen_reads = {}
         OTs = { self.OT.OUT : [], self.OT.SAME : [], self.OT.IN : [] } # store OT's vs insert lengths
         num_stored = 0
-        for alignedRead in bamFile.fetch():
-            if(num_stored > numPaired):
-                break                               # we have enough
-            # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-            query = re.sub("[_/\.].$", '', alignedRead.qname)
-            if query in seen_reads:
-                # we have a pair!
-                # check to see they're on the same strand
-                # rname is deprecated in pysam >= 0.4 use tid instead!
-                if alignedRead.tid == seen_reads[query].tid:
-                    if alignedRead.pos < seen_reads[query].pos:
-                        # alignedRead is mapped BEFORE the saved one
-                        (OT,ins) = self.determineOTSameRef(alignedRead, seen_reads[query])
-                    else:
-                        # otherwise it comes after
-                        (OT,ins) = self.determineOTSameRef(seen_reads[query], alignedRead)
-                    OTs[OT].append(ins)
-                    num_stored += 1
-            else:
-                seen_reads[query] = alignedRead
+
+        for reference, length in zip(bamFile.references, bamFile.lengths):
+            rl = ReadLoader()
+            bamFile.fetch(reference, 0, length, callback = rl )
+            for alignedRead in rl.alignedReads:
+                if(num_stored > numPaired):
+                    break                               # we have enough
+                # strip off any trailing ".1, _1, /1" which may be at the end of the read id
+                query = re.sub("[_/\.].$", '', alignedRead.qname)
+                if query in seen_reads:
+                    # we have a pair!
+                    # check to see they're on the same strand
+                    # rname is deprecated in pysam >= 0.4 use tid instead!
+                    if alignedRead.tid == seen_reads[query].tid:
+                        if alignedRead.pos < seen_reads[query].pos:
+                            # alignedRead is mapped BEFORE the saved one
+                            (OT,ins) = self.determineOTSameRef(alignedRead, seen_reads[query])
+                        else:
+                            # otherwise it comes after
+                            (OT,ins) = self.determineOTSameRef(seen_reads[query], alignedRead)
+                        OTs[OT].append(ins)
+                        num_stored += 1
+                else:
+                    seen_reads[query] = alignedRead
         
         # now determine the stats for this bamfile
         # we'd like the vast majority of the OT's to agree
