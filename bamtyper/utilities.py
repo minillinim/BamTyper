@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -174,9 +174,6 @@ class BamParser:
         numPaired refers to the number of mapped pairs we need before
         we are confident to make a decsion
         """
-        # just a sanity check here
-        if bamType[0] == self.OT.ERROR:
-            return []
         all_links = []
         coverages = {}
         seen_reads = {}
@@ -193,19 +190,21 @@ class BamParser:
                     except KeyError:
                         coverages[ar_name] = 1.0
     
-                # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-                query = re.sub("[_/\.].$", '', alignedRead.qname)
-                if query in seen_reads:
-                    # we have a pair!
-                    # check to see they're on the same strand
-                    # rname is deprecated in pysam >= 0.4 use tid instead!
-                    if alignedRead.tid != seen_reads[query].tid:
-                        (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
-                        if LT != self.LT.ERROR:
-                            link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
-                            all_links.append(link)
-                else:
-                    seen_reads[query] = alignedRead
+                # no need to go here if the type is error
+                if bamType[0] != self.OT.ERROR:
+                    # strip off any trailing ".1, _1, /1" which may be at the end of the read id
+                    query = re.sub("[_/\.].$", '', alignedRead.qname)
+                    if query in seen_reads:
+                        # we have a pair!
+                        # check to see they're on the same strand
+                        # rname is deprecated in pysam >= 0.4 use tid instead!
+                        if alignedRead.tid != seen_reads[query].tid:
+                            (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
+                            if LT != self.LT.ERROR:
+                                link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
+                                all_links.append(link)
+                    else:
+                        seen_reads[query] = alignedRead
     
         if(doCoverage):
             return (all_links, coverages, dict(zip(references,ref_lengths)))
@@ -490,7 +489,7 @@ class BamParser:
                 return (OT, int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
         
         # return garbage
-        return (self.OT.ERROR, 0)
+        return (self.OT.ERROR, 0, 0)
      
     def determineOTSameRef(self, ar1, ar2):
         """Determine the orientation type and insert size of two reads
