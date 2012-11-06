@@ -49,12 +49,15 @@ __status__ = "Development"
 
 ###############################################################################
 import os
+import gzip
 import sys
 import re
 import numpy as np
 
 import pysam
-
+from string import maketrans as s_maketrans
+from os.path import splitext as osp_splitext, basename as osp_basename, dirname as osp_dirname, join as osp_join
+ 
 ###############################################################################
 ###############################################################################
 ###############################################################################
@@ -85,6 +88,7 @@ class BamParser:
                            self.LT.EE:self.LT.EE,
                            self.LT.ERROR:self.LT.ERROR}
         
+        self.compl = s_maketrans('ACGT', 'TGCA')
 #------------------------------------------------------------------------------
 # Managing orientation types
     
@@ -420,6 +424,174 @@ class BamParser:
             return (rname2, rname1, self.LTInverter[LT], gap)
         
 #------------------------------------------------------------------------------
+# Extract reads from BAM files
+
+    def extractReads(self, bamFiles, prefix, targets, combineBams=False, pairsOnly=False, combine=False, shuffle=False, largeFiles=False, verbose=True):
+        """Extract reads from BAM files"""
+        # get a collection of storage points
+        read_storage = {}
+        bam_count = 0
+        num_bams = len(bamFiles)
+        for bf in bamFiles:
+            seen_reads = {}
+            read_storage[bam_count] = {}
+            for bid in targets.values():
+                read_storage[bam_count][bid] = [[],[],[]] # paired1, paired2, singles
+            try:
+                bam_file = pysam.Samfile(bf, 'rb')
+                if verbose:
+                    print "    Parsing BAM '%s' (%d of %d)" % (getBamDescriptor(bf), (bam_count+1), num_bams)
+                (OT, mean, stdev) = self.classifyBamType(bam_file)
+                
+                # use these to work out if we need quality scores or not
+                w_qual = 0
+                wo_qual = 0
+                # now get the reads associated with each target
+                for reference, length in zip(bam_file.references, bam_file.lengths):
+                    rl = ReadLoader()
+                    bam_file.fetch(reference, 0, length, callback = rl )
+                    for alignedRead in rl.alignedReads:
+                        query = re.sub("[_/\.].$", '', alignedRead.qname)
+                        # we have basically thrown out all pairing information here
+                        # so we make some assumptions:
+                        #
+                        # The first read we see in a pair is the first read
+                        # We trust the reversed flag
+                        # We don't mess with the relative orientation that follows
+                        #
+                        if query in seen_reads:
+                            # get the raw reads
+                            if seen_reads[query].is_reverse:
+                                read1 = (seen_reads[query].qname, self.revComp(seen_reads[query].seq), seen_reads[query].qual)
+                            else:
+                                read1 = (seen_reads[query].qname, seen_reads[query].seq, seen_reads[query].qual)
+                            if alignedRead.is_reverse:
+                                read2 = (alignedRead.qname, self.revComp(alignedRead.seq), alignedRead.qual)
+                            else:
+                                read2 = (alignedRead.qname, alignedRead.seq, alignedRead.qual)
+
+                            # check for quality info
+                            if read1[2] is None:
+                                wo_qual += 1
+                            else:
+                                w_qual += 1
+                            
+                            # put them in the storage
+                            try:
+                                bid1 = targets[bam_file.getrname(alignedRead.tid)]
+                                read_storage[bam_count][bid][0].append(read1)
+                                read_storage[bam_count][bid][1].append(read2)
+                            except KeyError:
+                                pass
+                            try:
+                                bid2 = targets[bam_file.getrname(seen_reads[query].tid)]
+                                if bid2 != bid1:
+                                    read_storage[bam_count][bid][0].append(read1)
+                                    read_storage[bam_count][bid][1].append(read2)
+                            except KeyError:
+                                pass
+                            
+                            # delete this guy so we can determine who the pairs are at the end
+                            del seen_reads[query]
+                        else:
+                            seen_reads[query] = alignedRead
+                
+                # now we can get the unpaired guys
+                for alignedRead in seen_reads.values():
+                    if alignedRead.is_reverse:
+                        read = (alignedRead.qname, self.revComp(alignedRead.seq), alignedRead.qual)
+                    else:
+                        read = (alignedRead.qname, alignedRead.seq, alignedRead.qual)
+                    try:
+                        bid = targets[bam_file.getrname(alignedRead.tid)]
+                        read_storage[bam_count][bid][2].append(read)
+                    except KeyError:
+                        pass
+
+                bam_file.close()
+                
+                # now we can write to file
+                # work out file extension
+                has_qual = w_qual > wo_qual
+                if has_qual:
+                    extension = "fq"
+                else:
+                    extension = "fa"
+                
+                # work out compression
+                if largeFiles:
+                    fopen = open
+                else:
+                    fopen = gzip.open
+                    extension += '.gz'
+                    
+                # get a basename
+                if combineBams:
+                    # always use the same file
+                    base_name = osp_join(osp_dirname(bf),"extracted")
+                else:
+                    # need a different base name for each bam
+                    base_name = getBamStem(bf)
+                    
+                for bid in targets.values():
+                    if bid == -1:
+                        # single bin, no need to be fancy
+                        if shuffle:
+                            # if we are going to shuffle reads then we don't need
+                            # to open a second file handle
+                            read1_fh = fopen("%s_%s.%s" % (base_name, prefix, extension), 'w')
+                            read2_fh = read1_fh
+                        else:
+                            read1_fh = fopen("%s_%s_1.%s" % (base_name, prefix, extension), 'w')
+                            read2_fh = fopen("%s_%s_2.%s" % (base_name, prefix, extension), 'w')
+                            
+                    else:
+                        if shuffle:
+                            read1_fh = fopen("%s_%s_%d.%s" % (base_name, prefix, bid, extension), 'w')
+                            read2_fh = read1_fh
+                        else:
+                            read1_fh = fopen("%s_%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
+                            read2_fh = fopen("%s_%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
+                            
+                    close_unpaired_file = False
+                    if not pairsOnly:
+                        # we need to write the unpaired guys somewhere
+                        if combine and shuffle:
+                            # we can just add them to the end of read1_fh
+                            unpaired_fh = read1_fh
+                        else:
+                            # either the user wanted things separate or they chose
+                            # not to shuffle, either way a new fh is needed
+                            close_unpaired_file = True
+                            if bid == -1:
+                                unpaired_fh = fopen("%s_%s_unpaired.%s" % (base_name, prefix, extension), 'w')
+                            else:
+                                unpaired_fh = fopen("%s_%s_%d_unpaired.%s" % (base_name, prefix, bid, extension), 'w')
+                    
+                    # now we print
+                    for i in range(len(read_storage[bam_count][bid][0])):
+                        read1_fh.write(self.formatRead(read_storage[bam_count][bid][0][i], has_qual))
+                        read2_fh.write(self.formatRead(read_storage[bam_count][bid][1][i], has_qual))
+                    for i in range(len(read_storage[bam_count][bid][2])):
+                        unpaired_fh.write(self.formatRead(read_storage[bam_count][bid][2][i], has_qual))
+                
+                    read1_fh.close()
+                    if not shuffle:
+                        read2_fh.close()
+                    if close_unpaired_file:
+                        unpaired_fh.close()
+            except:
+                print "Unable to open BAM file",bf,"-- did you supply a SAM file instead?"
+                raise
+            bam_count += 1
+            
+    def formatRead(self, readInfo, fastq):
+        """Make a formatted string ready for printing"""
+        if fastq:
+            return "@%s\n%s\n+\n%s\n" % (readInfo[0], readInfo[1], readInfo[2])
+        else:
+            return ">%s\n%s\n" % (readInfo[0], readInfo[1])
+#------------------------------------------------------------------------------
 # Working out read types
 
     def getTypes(self, bamFiles, verbose=False):
@@ -515,14 +687,24 @@ class BamParser:
             else:
                 # --1-> --2->
                 return (self.OT.SAME, isize)
-    
+
+    def revComp(self, seq):
+        """Return the reverse complement of a sequence"""
+        # build a dictionary to know what letter to switch to
+        return seq.translate(self.compl)[::-1]
+
 def getBamDescriptor(fullPath):
     """AUX: Reduce a full path to just the file name minus extension"""
-    return os.path.splitext(os.path.basename(fullPath))[0]
+    return osp_splitext(osp_basename(fullPath))[0]
+
+def getBamStem(fullPath):
+    """AUX: Reduce a full path to the path + file name minus extension"""
+    return osp_splitext(fullPath)[0]
 
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
+
 
 ###############################################################################
 ###############################################################################
