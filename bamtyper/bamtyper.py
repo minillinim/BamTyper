@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -92,7 +92,9 @@ class BamTyperOptionsParser():
                                    pairsOnly=options.pairs_only,
                                    combine=options.combine_reads,
                                    shuffle=options.shuffle,
-                                   largeFiles=options.no_gzip
+                                   largeFiles=options.no_gzip,
+                                   headersOnly=options.headers_only,
+                                   dontTrustSamFlags=options.dont_trust_sam_flags
                                    )
         elif(options.subparser_name == 'links'):
             # Calculate linking reads and possibly coverages

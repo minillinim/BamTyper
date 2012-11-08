@@ -42,21 +42,20 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
 
 ###############################################################################
-import os
-import gzip
 import sys
-import re
+import gzip
 import numpy as np
 
 import pysam
 from string import maketrans as s_maketrans
 from os.path import splitext as osp_splitext, basename as osp_basename, dirname as osp_dirname, join as osp_join
+from re import sub as re_sub
  
 ###############################################################################
 ###############################################################################
@@ -197,7 +196,7 @@ class BamParser:
                 # no need to go here if the type is error
                 if bamType[0] != self.OT.ERROR:
                     # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-                    query = re.sub("[_/\.].$", '', alignedRead.qname)
+                    (query, end) = self.splitReadheader(alignedRead)
                     if query in seen_reads:
                         # we have a pair!
                         # check to see they're on the same strand
@@ -426,8 +425,25 @@ class BamParser:
 #------------------------------------------------------------------------------
 # Extract reads from BAM files
 
-    def extractReads(self, bamFiles, prefix, targets, combineBams=False, pairsOnly=False, combine=False, shuffle=False, largeFiles=False, verbose=True):
-        """Extract reads from BAM files"""
+    def extractReads(self, bamFiles, 
+                     prefix, 
+                     targets, 
+                     combineBams=False, 
+                     pairsOnly=False, 
+                     combine=False, 
+                     shuffle=False, 
+                     largeFiles=False, 
+                     headersOnly = False,
+                     dontTrustSamFlags=True, 
+                     verbose=True):
+        """Extract reads from BAM files
+        
+        targets is a hash of type:
+        { reference_name : bid }
+        
+        If bid == -1 then there is only one bin. This option is used by the command line
+        caller so you can extract using a normal list 
+        """
         # get a collection of storage points
         read_storage = {}
         bam_count = 0
@@ -446,12 +462,17 @@ class BamParser:
                 # use these to work out if we need quality scores or not
                 w_qual = 0
                 wo_qual = 0
+                
+                for alignedRead in bam_file.fetch(until_eof=True):
+                    if alignedRead.is_unmapped:
+                        print alignedRead
+
                 # now get the reads associated with each target
                 for reference, length in zip(bam_file.references, bam_file.lengths):
                     rl = ReadLoader()
                     bam_file.fetch(reference, 0, length, callback = rl )
                     for alignedRead in rl.alignedReads:
-                        query = re.sub("[_/\.].$", '', alignedRead.qname)
+                        (query, end) = self.splitReadheader(alignedRead, dontTrustSamFlags=dontTrustSamFlags)
                         # we have basically thrown out all pairing information here
                         # so we make some assumptions:
                         #
@@ -461,14 +482,22 @@ class BamParser:
                         #
                         if query in seen_reads:
                             # get the raw reads
-                            if seen_reads[query].is_reverse:
-                                read1 = (seen_reads[query].qname, self.revComp(seen_reads[query].seq), seen_reads[query].qual)
+                            if seen_reads[query][0].is_reverse:
+                                seen_read = (seen_reads[query][0].qname, self.revComp(seen_reads[query][0].seq), seen_reads[query][0].qual)
                             else:
-                                read1 = (seen_reads[query].qname, seen_reads[query].seq, seen_reads[query].qual)
+                                seen_read = (seen_reads[query][0].qname, seen_reads[query][0].seq, seen_reads[query][0].qual)
                             if alignedRead.is_reverse:
-                                read2 = (alignedRead.qname, self.revComp(alignedRead.seq), alignedRead.qual)
+                                align_read = (alignedRead.qname, self.revComp(alignedRead.seq), alignedRead.qual)
                             else:
-                                read2 = (alignedRead.qname, alignedRead.seq, alignedRead.qual)
+                                align_read = (alignedRead.qname, alignedRead.seq, alignedRead.qual)
+
+                            # work out which is the first in the pair and which is the second
+                            if end == 1:
+                                read1 = align_read
+                                read2 = seen_read
+                            else:
+                                read1 = seen_read
+                                read2 = align_read
 
                             # check for quality info
                             if read1[2] is None:
@@ -479,25 +508,25 @@ class BamParser:
                             # put them in the storage
                             try:
                                 bid1 = targets[bam_file.getrname(alignedRead.tid)]
-                                read_storage[bam_count][bid][0].append(read1)
-                                read_storage[bam_count][bid][1].append(read2)
+                                read_storage[bam_count][bid1][0].append(read1)
+                                read_storage[bam_count][bid1][1].append(read2)
                             except KeyError:
                                 pass
                             try:
-                                bid2 = targets[bam_file.getrname(seen_reads[query].tid)]
+                                bid2 = targets[bam_file.getrname(seen_reads[query][0].tid)]
                                 if bid2 != bid1:
-                                    read_storage[bam_count][bid][0].append(read1)
-                                    read_storage[bam_count][bid][1].append(read2)
+                                    read_storage[bam_count][bid2][0].append(read1)
+                                    read_storage[bam_count][bid2][1].append(read2)
                             except KeyError:
                                 pass
                             
                             # delete this guy so we can determine who the pairs are at the end
                             del seen_reads[query]
                         else:
-                            seen_reads[query] = alignedRead
+                            seen_reads[query] = (alignedRead, end)
                 
-                # now we can get the unpaired guys
-                for alignedRead in seen_reads.values():
+                for ar in seen_reads.values():
+                    alignedRead = ar[0]
                     if alignedRead.is_reverse:
                         read = (alignedRead.qname, self.revComp(alignedRead.seq), alignedRead.qual)
                     else:
@@ -513,10 +542,15 @@ class BamParser:
                 # now we can write to file
                 # work out file extension
                 has_qual = w_qual > wo_qual
-                if has_qual:
-                    extension = "fq"
+                if headersOnly:
+                    extension = 'headers'
+                    shuffle = True # force everything into one file
+                    pairsOnly = True
                 else:
-                    extension = "fa"
+                    if has_qual:
+                        extension = "fq"
+                    else:
+                        extension = "fa"
                 
                 # work out compression
                 if largeFiles:
@@ -569,11 +603,22 @@ class BamParser:
                                 unpaired_fh = fopen("%s_%s_%d_unpaired.%s" % (base_name, prefix, bid, extension), 'w')
                     
                     # now we print
-                    for i in range(len(read_storage[bam_count][bid][0])):
-                        read1_fh.write(self.formatRead(read_storage[bam_count][bid][0][i], has_qual))
-                        read2_fh.write(self.formatRead(read_storage[bam_count][bid][1][i], has_qual))
-                    for i in range(len(read_storage[bam_count][bid][2])):
-                        unpaired_fh.write(self.formatRead(read_storage[bam_count][bid][2][i], has_qual))
+                    if headersOnly:
+                        headers = {} # pipe into a hash first so we don't get dupes
+                        for i in range(len(read_storage[bam_count][bid][0])):
+                            headers[read_storage[bam_count][bid][0][i][0]] = True
+                            headers[read_storage[bam_count][bid][1][i][0]] = True
+                        for i in range(len(read_storage[bam_count][bid][2])):
+                            headers[read_storage[bam_count][bid][2][i][0]] = True
+                        for header in headers:
+                            read1_fh.write(header+"\n")
+                    else:
+                        for i in range(len(read_storage[bam_count][bid][0])):
+                            read1_fh.write(self.formatRead(read_storage[bam_count][bid][0][i], has_qual))
+                            read2_fh.write(self.formatRead(read_storage[bam_count][bid][1][i], has_qual))
+                        if not pairsOnly:
+                            for i in range(len(read_storage[bam_count][bid][2])):
+                                unpaired_fh.write(self.formatRead(read_storage[bam_count][bid][2][i], has_qual))
                 
                     read1_fh.close()
                     if not shuffle:
@@ -591,6 +636,25 @@ class BamParser:
             return "@%s\n%s\n+\n%s\n" % (readInfo[0], readInfo[1], readInfo[2])
         else:
             return ">%s\n%s\n" % (readInfo[0], readInfo[1])
+        
+    def splitReadheader(self, alignedRead, dontTrustSamFlags=False):
+        """Split the read header to determine the common part of a pair and it's pair ref"""
+        query = re_sub("[_/\.][12]$", '', alignedRead.qname) # this will not affect illumina headers
+        if dontTrustSamFlags:
+            # try work out pairing info from the read header itself
+            try:
+                end = int(re_sub(".*[_/\.]",'', alignedRead.qname))
+            except:
+                return (query, None)
+            if end != 1 and end != 2:
+                return (query, None)
+        else:
+            if alignedRead.is_read1:
+                end = 1
+            else:
+                end = 2
+        return (query, end)
+
 #------------------------------------------------------------------------------
 # Working out read types
 
@@ -636,7 +700,7 @@ class BamParser:
                 if(num_stored > numPaired):
                     break                               # we have enough
                 # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-                query = re.sub("[_/\.].$", '', alignedRead.qname)
+                (query, end) = self.splitReadheader(alignedRead)
                 if query in seen_reads:
                     # we have a pair!
                     # check to see they're on the same strand
