@@ -113,6 +113,7 @@ if __name__ == '__main__':
     extract_parser.add_argument('-c', '--combine_reads', action="store_true", default=False, help="write paired and unpaired to the same files")
     extract_parser.add_argument('-s', '--shuffle', action="store_true", default=False, help="shuffle paired reads in ouput files")
     extract_parser.add_argument('-g', '--no_gzip', action="store_true", default=False, help="do not gzip output files")
+    extract_parser.add_argument('-o', '--out_folder', default="", help="write to this folder (None for current dir)")
     extract_parser.add_argument('-H', '--headers_only', action="store_true", default=False, help="extract only (unique) headers")
     
     #-------------------------------------------------

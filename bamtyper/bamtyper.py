@@ -94,7 +94,8 @@ class BamTyperOptionsParser():
                                    shuffle=options.shuffle,
                                    largeFiles=options.no_gzip,
                                    headersOnly=options.headers_only,
-                                   dontTrustSamFlags=options.dont_trust_sam_flags
+                                   dontTrustSamFlags=options.dont_trust_sam_flags,
+                                   folder=options.out_folder
                                    )
         elif(options.subparser_name == 'links'):
             # Calculate linking reads and possibly coverages

@@ -55,6 +55,7 @@ import numpy as np
 import pysam
 from string import maketrans as s_maketrans
 from os.path import splitext as osp_splitext, basename as osp_basename, dirname as osp_dirname, join as osp_join
+from os import makedirs as os_makedirs
 from re import sub as re_sub
  
 ###############################################################################
@@ -434,7 +435,8 @@ class BamParser:
                      shuffle=False, 
                      largeFiles=False, 
                      headersOnly = False,
-                     dontTrustSamFlags=True, 
+                     dontTrustSamFlags=True,
+                     folder='', 
                      verbose=True):
         """Extract reads from BAM files
         
@@ -558,7 +560,7 @@ class BamParser:
                 else:
                     fopen = gzip.open
                     extension += '.gz'
-                    
+                
                 # get a basename
                 if combineBams:
                     # always use the same file
@@ -566,6 +568,10 @@ class BamParser:
                 else:
                     # need a different base name for each bam
                     base_name = getBamStem(bf)
+
+                if folder != '':
+                    makeSurePathExists(folder)
+                    base_name = osp_join(folder, base_name)
                     
                 for bid in targets.values():
                     if bid == -1:
@@ -769,6 +775,12 @@ def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
 
+def makeSurePathExists(path):
+    try:
+        os_makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
 
 ###############################################################################
 ###############################################################################
