@@ -572,26 +572,29 @@ class BamParser:
                 if folder != '':
                     makeSurePathExists(folder)
                     base_name = osp_join(folder, base_name)
-                    
+                
+                if prefix != '':
+                    prefix = "_"+prefix
+                        
                 for bid in targets.values():
                     if bid == -1:
                         # single bin, no need to be fancy
                         if shuffle:
                             # if we are going to shuffle reads then we don't need
                             # to open a second file handle
-                            read1_fh = fopen("%s_%s.%s" % (base_name, prefix, extension), 'w')
+                            read1_fh = fopen("%s%s.%s" % (base_name, prefix, extension), 'w')
                             read2_fh = read1_fh
                         else:
-                            read1_fh = fopen("%s_%s_1.%s" % (base_name, prefix, extension), 'w')
-                            read2_fh = fopen("%s_%s_2.%s" % (base_name, prefix, extension), 'w')
+                            read1_fh = fopen("%s%s_1.%s" % (base_name, prefix, extension), 'w')
+                            read2_fh = fopen("%s%s_2.%s" % (base_name, prefix, extension), 'w')
                             
                     else:
                         if shuffle:
-                            read1_fh = fopen("%s_%s_%d.%s" % (base_name, prefix, bid, extension), 'w')
+                            read1_fh = fopen("%s%s_%d.%s" % (base_name, prefix, bid, extension), 'w')
                             read2_fh = read1_fh
                         else:
-                            read1_fh = fopen("%s_%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
-                            read2_fh = fopen("%s_%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
+                            read1_fh = fopen("%s%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
+                            read2_fh = fopen("%s%s_%d_1.%s" % (base_name, prefix, bid, extension), 'w')
                             
                     close_unpaired_file = False
                     if not pairsOnly:
@@ -604,9 +607,9 @@ class BamParser:
                             # not to shuffle, either way a new fh is needed
                             close_unpaired_file = True
                             if bid == -1:
-                                unpaired_fh = fopen("%s_%s_unpaired.%s" % (base_name, prefix, extension), 'w')
+                                unpaired_fh = fopen("%s%s_unpaired.%s" % (base_name, prefix, extension), 'w')
                             else:
-                                unpaired_fh = fopen("%s_%s_%d_unpaired.%s" % (base_name, prefix, bid, extension), 'w')
+                                unpaired_fh = fopen("%s%s_%d_unpaired.%s" % (base_name, prefix, bid, extension), 'w')
                     
                     # now we print
                     if headersOnly:
