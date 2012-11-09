@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -71,11 +71,40 @@ class BamTyperOptionsParser():
             BamParser = utilities.BamParser()
             BamParser.getTypes(options.bamfiles, verbose=True)
 
+        elif(options.subparser_name == 'extract'):
+            # extract reads from the BAM files
+            BamParser = utilities.BamParser()
+            
+            # there is only one bin in this case
+            # make the list appropriate to this usage
+            targets={}
+            try:
+                with open(options.list, "r") as lf:
+                    for line in lf:
+                        targets[line.rstrip()] = -1 # bid of -1 indicates single bin
+            except:
+                print "Could not parse list file:",options.list,exc_info()[0]
+                raise
+            BamParser.extractReads(options.bamfiles,
+                                   options.prefix,        
+                                   targets,
+                                   combineBams=options.no_separate_bams,
+                                   pairsOnly=options.pairs_only,
+                                   combine=options.combine_reads,
+                                   shuffle=options.shuffle,
+                                   largeFiles=options.no_gzip,
+                                   headersOnly=options.headers_only,
+                                   dontTrustSamFlags=options.dont_trust_sam_flags,
+                                   folder=options.out_folder
+                                   )
         elif(options.subparser_name == 'links'):
             # Calculate linking reads and possibly coverages
             BamParser = utilities.BamParser()
             if options.coverage:
-                (filtered_links, ref_lengths, total_coverages) = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=True, minJoin=options.min)
+                (filtered_links, ref_lengths, total_coverages) = BamParser.getLinks(options.bamfiles,
+                                                                                    full=options.verbose,
+                                                                                    doCoverage=True,
+                                                                                    minJoin=options.min)
                 for cid in filtered_links:
                     print cid, 
                     for fl in filtered_links[cid]: 
@@ -90,7 +119,10 @@ class BamTyperOptionsParser():
                             line_vals.append("0.0")
                     print "\t".join(line_vals)
             else:
-                filtered_links = BamParser.getLinks(options.bamfiles, full=options.verbose, doCoverage=False, minJoin=options.min)
+                filtered_links = BamParser.getLinks(options.bamfiles,
+                                                    full=options.verbose,
+                                                    doCoverage=False,
+                                                    minJoin=options.min)
                 for cid in filtered_links:
                     print cid, 
                     for fl in filtered_links[cid]: 

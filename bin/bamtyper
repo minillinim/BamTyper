@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -66,7 +66,8 @@ def printHelp():
     Working with the BAM, not against it...
 
     bamtyper type      -> Parse BAM files and determine reads type
-    bamtyper links      -> Parse BAM files and get linking reads
+    bamtyper links     -> Parse BAM files and get linking reads
+    bamtyper extract   -> Extract reads from BAM files
     
     USE: bamtyper OPTION -h to see detailed options
     '''
@@ -96,6 +97,25 @@ if __name__ == '__main__':
     links_parser.add_argument('-c', '--coverage', action="store_true", default=False, help="calculate coverage for each reference")
     links_parser.add_argument('-m', '--min', default=0, help="minimum number of links to report. 0 for all links")
 
+    #-------------------------------------------------
+    # read extractor
+    extract_parser = subparsers.add_parser('extract',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        help='extract reads from bamfile(s)',
+                                        description='Extract reads which hit the given references')
+    extract_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
+    extract_parser.add_argument('prefix', help="prefix to apply to output files")        
+    extract_parser.add_argument('list', help="file containing reference names. 1 per line")
+    
+    extract_parser.add_argument('-d', '--dont_trust_sam_flags', action="store_true", default=False, help="do not trust sam flags")
+    extract_parser.add_argument('-p', '--pairs_only', action="store_true", default=False, help="ignore unpaired reads")
+    extract_parser.add_argument('-b', '--no_separate_bams', action="store_true", default=False, help="use the same file for all reads")
+    extract_parser.add_argument('-c', '--combine_reads', action="store_true", default=False, help="write paired and unpaired to the same files")
+    extract_parser.add_argument('-s', '--shuffle', action="store_true", default=False, help="shuffle paired reads in ouput files")
+    extract_parser.add_argument('-g', '--no_gzip', action="store_true", default=False, help="do not gzip output files")
+    extract_parser.add_argument('-o', '--out_folder', default="", help="write to this folder (None for current dir)")
+    extract_parser.add_argument('-H', '--headers_only', action="store_true", default=False, help="extract only (unique) headers")
+    
     #-------------------------------------------------
     # get and check options
     args = None
