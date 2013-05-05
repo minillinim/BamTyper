@@ -68,6 +68,7 @@ def printHelp():
     bamtyper type      -> Parse BAM files and determine reads type
     bamtyper links     -> Parse BAM files and get linking reads
     bamtyper extract   -> Extract reads from BAM files
+    bamtyper report    -> Create stats on read-contig mappings
     
     USE: bamtyper OPTION -h to see detailed options
     '''
@@ -103,10 +104,10 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         help='extract reads from bamfile(s)',
                                         description='Extract reads which hit the given references')
-    extract_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
-    extract_parser.add_argument('prefix', help="prefix to apply to output files")        
     extract_parser.add_argument('list', help="file containing reference names. 1 per line")
+    extract_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
     
+    extract_parser.add_argument('--prefix', help="prefix to apply to output files")        
     extract_parser.add_argument('-d', '--dont_trust_sam_flags', action="store_true", default=False, help="do not trust sam flags")
     extract_parser.add_argument('-p', '--pairs_only', action="store_true", default=False, help="ignore unpaired reads")
     extract_parser.add_argument('-b', '--no_separate_bams', action="store_true", default=False, help="use the same file for all reads")
@@ -115,6 +116,18 @@ if __name__ == '__main__':
     extract_parser.add_argument('-g', '--no_gzip', action="store_true", default=False, help="do not gzip output files")
     extract_parser.add_argument('-o', '--out_folder', default="", help="write to this folder (None for current dir)")
     extract_parser.add_argument('-H', '--headers_only', action="store_true", default=False, help="extract only (unique) headers")
+
+    #-------------------------------------------------
+    # report generator
+    report_parser = subparsers.add_parser('report',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        help='Create stats on read-contig mappings',
+                                        description='create stats on read-contig mappings')
+    report_parser.add_argument('contigs', help="file containing reference sequences")
+    report_parser.add_argument('bamfiles', nargs='+', help="bam files to parse")
+    report_parser.add_argument('--prefix', help="prefix to apply to output files")        
+    report_parser.add_argument('-o', '--out_folder', default="", help="write to this folder (None for current dir)")
+    report_parser.add_argument('-p', '--plots', action="store_true", default=False, help="create contig plots")
     
     #-------------------------------------------------
     # get and check options

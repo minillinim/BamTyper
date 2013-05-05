@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.0"
+__version__ = "0.2.3"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -55,6 +55,7 @@ import os
 
 # BamTyper imports
 import utilities
+import reportGenerator
  
 ###############################################################################
 ###############################################################################
@@ -128,6 +129,11 @@ class BamTyperOptionsParser():
                     for fl in filtered_links[cid]: 
                         print ", [",fl[0],",",fl[1],",",BamParser.LT2Str(fl[2], terse=True),", %0.0f ]" % fl[3],
                     print 
+        elif(options.subparser_name == 'report'):
+            # parse the file and make some stats
+            RG = reportGenerator.ReportGenerator(options.contigs, options.bamfiles)
+            
+            
         return 0
 
 ###############################################################################

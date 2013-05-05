@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.0"
+__version__ = "0.2.3"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -167,9 +167,9 @@ class BamParser:
 
         filtered_links = self.filterLinks(all_links, full=full, minJoin=minJoin)
         if doCoverage:
-            for bam_cov in total_coverages:
-                for cid in total_coverages[bam_cov]:
-                    total_coverages[bam_cov][cid] = float(total_coverages[bam_cov][cid]) / float(ref_lengths[cid])
+#            for bam_cov in total_coverages:
+#                for cid in total_coverages[bam_cov]:
+#                    total_coverages[bam_cov][cid] = float(total_coverages[bam_cov][cid]) / float(ref_lengths[cid])
             return (filtered_links, ref_lengths, total_coverages)
         return filtered_links
 
@@ -177,23 +177,28 @@ class BamParser:
         """Parse a bam file (handle) to extract linking reads
         
         numPaired refers to the number of mapped pairs we need before
-        we are confident to make a decsion
+        we are confident to make a decision
+        
+        If doCoverage is specified then we work out the mode vertical coverage
         """
         all_links = []
         coverages = {}
+        tcoverages = {}
         seen_reads = {}
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
         for reference, length in zip(bamFile.references, bamFile.lengths):
+            cov = np.zeros((length))
             rl = ReadLoader()
             bamFile.fetch(reference, 0, length, callback = rl )
             for alignedRead in rl.alignedReads:
                 if doCoverage:
-                    ar_name = bamFile.getrname(alignedRead.tid)
-                    try:
-                        coverages[ar_name] += 1.0
-                    except KeyError:
-                        coverages[ar_name] = 1.0
+                    cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
+#                    ar_name = bamFile.getrname(alignedRead.tid)
+#                    try:
+#                        tcoverages[ar_name] += 1.0
+#                    except KeyError:
+#                        tcoverages[ar_name] = 1.0
     
                 # no need to go here if the type is error
                 if bamType[0] != self.OT.ERROR:
@@ -210,8 +215,11 @@ class BamParser:
                                 all_links.append(link)
                     else:
                         seen_reads[query] = alignedRead
-    
+            if(doCoverage):
+                coverages[reference] = float(np.argmax(np.bincount([int(u) for u in cov])))
         if(doCoverage):
+#            for reference, length in zip(bamFile.references, bamFile.lengths):
+#                print reference, coverages[reference], tcoverages[reference], float(coverages[reference])/float(length)
             return (all_links, coverages, dict(zip(references,ref_lengths)))
         else:
             return all_links
