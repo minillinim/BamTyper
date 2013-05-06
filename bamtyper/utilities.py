@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -179,11 +179,10 @@ class BamParser:
         numPaired refers to the number of mapped pairs we need before
         we are confident to make a decision
         
-        If doCoverage is specified then we work out the mode vertical coverage
+        If doCoverage is specified then we work out the masked mean vertical coverage
         """
         all_links = []
         coverages = {}
-        tcoverages = {}
         seen_reads = {}
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
@@ -192,13 +191,10 @@ class BamParser:
             rl = ReadLoader()
             bamFile.fetch(reference, 0, length, callback = rl )
             for alignedRead in rl.alignedReads:
+                # are we making a pileup?
                 if doCoverage:
+                    # numpy advanced slicing ftw!
                     cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
-#                    ar_name = bamFile.getrname(alignedRead.tid)
-#                    try:
-#                        tcoverages[ar_name] += 1.0
-#                    except KeyError:
-#                        tcoverages[ar_name] = 1.0
     
                 # no need to go here if the type is error
                 if bamType[0] != self.OT.ERROR:
@@ -216,10 +212,15 @@ class BamParser:
                     else:
                         seen_reads[query] = alignedRead
             if(doCoverage):
-                coverages[reference] = float(np.argmax(np.bincount([int(u) for u in cov])))
+                cov_mean = np.mean(cov)
+                cov_std = np.std(cov)
+                # make sure we are not doing anything crazy!!!
+                if cov_std == 0.:
+                    cov_std = cov_mean/6.
+                cov_cuts = (np.max([0., cov_mean-cov_std]), cov_mean+cov_std) 
+                tcov = [c for c in cov if c >= cov_cuts[0] and c <= cov_cuts[1]]
+                coverages[reference] = np.mean(tcov)
         if(doCoverage):
-#            for reference, length in zip(bamFile.references, bamFile.lengths):
-#                print reference, coverages[reference], tcoverages[reference], float(coverages[reference])/float(length)
             return (all_links, coverages, dict(zip(references,ref_lengths)))
         else:
             return all_links
