@@ -766,6 +766,7 @@ class BamParser:
                         else:
                             # otherwise it comes after
                             (OT,ins) = self.determineOTSameRef(seen_reads[query], alignedRead)
+
                         OTs[OT].append(ins)
                         num_stored += 1
                 else:
