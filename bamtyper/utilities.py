@@ -726,9 +726,9 @@ class BamParser:
                 bam_file = pysam.Samfile(bf, 'rb')
                 if verbose:
                     print "Determining OT for BAM '%s'" % (getBamDescriptor(bf))
-                (OT,ins,std) = self.classifyBamType(bam_file)
-                if verbose:
-                    print "Orientation: %s Insert: %d, Stdev: %d" % (self.OT2Str(OT), ins, std) 
+                    (OT,ins,std) = self.classifyBamType(bam_file, all=True)
+                else:
+                    (OT,ins,std) = self.classifyBamType(bam_file)
                 bam_types[bam_count] = (OT,ins,std)                
                 bam_count += 1
                 bam_file.close()
@@ -737,7 +737,7 @@ class BamParser:
                 raise
         return bam_types
     
-    def classifyBamType(self, bamFile, numPaired=10000):
+    def classifyBamType(self, bamFile, numPaired=10000, all=False):
         """Parse a bam file (handle) to determine the read orientation type
         
         numPaired refers to the number of mapped pairs we need before
@@ -774,6 +774,12 @@ class BamParser:
         
         # now determine the stats for this bamfile
         # we'd like the vast majority of the OT's to agree
+        
+        if all:
+            for OT in OTs:
+                print "Orientation: %s Insert mean: %d Stdev: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
+            
+        
         cutoff = int(num_stored * 0.9)
         for OT in OTs:
             if len(OTs[OT]) > cutoff:
