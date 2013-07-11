@@ -39,13 +39,13 @@
 ###############################################################################
 
 __author__ = "Michael Imelfort"
-__copyright__ = "Copyright 2012"
+__copyright__ = "Copyright 2012/2013"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
-__status__ = "Development"
+__status__ = "Release"
 
 ###############################################################################
 
@@ -65,13 +65,18 @@ def printHelp():
                    
     Working with the BAM, not against it...
 
+   -----------------------------------------
+                version: %s
+   -----------------------------------------
+
     bamtyper type      -> Parse BAM files and determine reads type
     bamtyper links     -> Parse BAM files and get linking reads
     bamtyper extract   -> Extract reads from BAM files
     bamtyper report    -> Create stats on read-contig mappings
     
     USE: bamtyper OPTION -h to see detailed options
-    '''
+    ''' % __version__
+
 if __name__ == '__main__':
 
     #-------------------------------------------------
@@ -132,7 +137,13 @@ if __name__ == '__main__':
     #-------------------------------------------------
     # get and check options
     args = None
-    if(len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
+    if(len(sys.argv) == 1):
+        printHelp()
+        sys.exit(0)
+    elif(sys.argv[1] == '-v' or sys.argv[1] == '--version'):
+        print "GroopM: version %s %s %s" % (__version__, __copyright__, __author__)
+        sys.exit(0)
+    elif(sys.argv[1] == '-h' or sys.argv[1] == '--help'):
         printHelp()
         sys.exit(0)
     else:
