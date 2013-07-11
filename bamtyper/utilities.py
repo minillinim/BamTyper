@@ -776,7 +776,8 @@ class BamParser:
         
         if all:
             for OT in OTs:
-                print "Orientation: %s Insert mean: %d Stdev: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
+                if len(OTUs[OT]) != 0:
+                    print "Orientation: %s Insert mean: %d Stdev: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
             
         
         cutoff = int(num_stored * 0.9)
