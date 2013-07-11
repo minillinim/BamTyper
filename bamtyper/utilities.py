@@ -220,6 +220,7 @@ class BamParser:
                 cov_cuts = (np.max([0., cov_mean-cov_std]), cov_mean+cov_std) 
                 tcov = [c for c in cov if c >= cov_cuts[0] and c <= cov_cuts[1]]
                 coverages[reference] = np.mean(tcov)
+                #print "##", np.std(tcov)
         if(doCoverage):
             return (all_links, coverages, dict(zip(references,ref_lengths)))
         else:
@@ -737,7 +738,7 @@ class BamParser:
                 raise
         return bam_types
     
-    def classifyBamType(self, bamFile, numPaired=10000, all=False):
+    def classifyBamType(self, bamFile, numPaired=10000, all=True):
         """Parse a bam file (handle) to determine the read orientation type
         
         numPaired refers to the number of mapped pairs we need before
@@ -777,7 +778,7 @@ class BamParser:
         
         if all:
             for OT in OTs:
-                print "Orientation: %s Insert mean: %d Stdev: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])))
+                print "Orientation: %s Insert mean: %d Stdev: %d Num: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])), len(OTs[OT]))
             
         
         cutoff = int(num_stored * 0.9)
