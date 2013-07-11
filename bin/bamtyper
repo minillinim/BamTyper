@@ -141,7 +141,7 @@ if __name__ == '__main__':
         printHelp()
         sys.exit(0)
     elif(sys.argv[1] == '-v' or sys.argv[1] == '--version'):
-        print "GroopM: version %s %s %s" % (__version__, __copyright__, __author__)
+        print "BamTyper: version %s %s %s" % (__version__, __copyright__, __author__)
         sys.exit(0)
     elif(sys.argv[1] == '-h' or sys.argv[1] == '--help'):
         printHelp()
