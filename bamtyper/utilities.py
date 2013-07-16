@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -778,7 +778,7 @@ class BamParser:
         
         if all:
             for OT in OTs:
-                if len(OTUs[OT]) != 0:
+                if len(OTs[OT]) != 0:
                     print "Orientation: %s Insert mean: %d Stdev: %d Num: %d" % (self.OT2Str(OT), int(np.mean(OTs[OT])), int(np.std(OTs[OT])), len(OTs[OT]))
         
         cutoff = int(num_stored * 0.9)
