@@ -173,7 +173,7 @@ class BamParser:
             return (filtered_links, ref_lengths, total_coverages)
         return filtered_links
 
-    def classifyBamLinks(self, bamFile, bamType, doCoverage=False):
+    def classifyBamLinks(self, bamFile, bamType, doCoverage=False, doFragCountCoverage=False):
         """Parse a bam file (handle) to extract linking reads
         
         numPaired refers to the number of mapped pairs we need before
@@ -187,7 +187,11 @@ class BamParser:
         ref_lengths = [int(x) for x in bamFile.lengths]
         references = bamFile.references
         for reference, length in zip(bamFile.references, bamFile.lengths):
-            cov = np.zeros((length))
+            if doCoverage:
+                if doFragCountCoverage:
+                    cov = 0
+                else:
+                    cov = np.zeros((length))
             rl = ReadLoader()
             bamFile.fetch(reference, 0, length, callback = rl )
             for alignedRead in rl.alignedReads:
@@ -197,8 +201,13 @@ class BamParser:
 
                     # are we making a pileup?
                     if doCoverage:
-                        # numpy advanced slicing ftw!
-                        cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
+                        if doFragCountCoverage:
+                            # just count them up
+                            cov += 1
+                        else:
+                            # use a masked type coverage calculation
+                            # numpy advanced slicing ftw!
+                            cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
         
                     # no need to go here if the type is error
                     if bamType[0] != self.OT.ERROR:
@@ -216,14 +225,17 @@ class BamParser:
                         else:
                             seen_reads[query] = alignedRead
             if(doCoverage):
-                cov_mean = np.mean(cov)
-                cov_std = np.std(cov)
-                # make sure we are not doing anything crazy!!!
-                if cov_std == 0.:
-                    cov_std = cov_mean/6.
-                cov_cuts = (np.max([0., cov_mean-cov_std]), cov_mean+cov_std) 
-                tcov = [c for c in cov if c >= cov_cuts[0] and c <= cov_cuts[1]]
-                coverages[reference] = np.mean(tcov)
+                if not doFragCountCoverage:
+                    cov_mean = np.mean(cov)
+                    cov_std = np.std(cov)
+                    # make sure we are not doing anything crazy!!!
+                    if cov_std == 0.:
+                        cov_std = cov_mean/6.
+                    cov_cuts = (np.max([0., cov_mean-cov_std]), cov_mean+cov_std) 
+                    tcov = [c for c in cov if c >= cov_cuts[0] and c <= cov_cuts[1]]
+                    coverages[reference] = np.mean(tcov)
+                else:
+                    coverages[reference] = cov
                 #print "##", np.std(tcov)
         if(doCoverage):
             return (all_links, coverages, dict(zip(references,ref_lengths)))
