@@ -42,7 +42,7 @@ __author__ = "Michael Imelfort"
 __copyright__ = "Copyright 2012"
 __credits__ = ["Michael Imelfort"]
 __license__ = "GPL3"
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 __maintainer__ = "Michael Imelfort"
 __email__ = "mike@mikeimelfort.com"
 __status__ = "Development"
@@ -191,26 +191,30 @@ class BamParser:
             rl = ReadLoader()
             bamFile.fetch(reference, 0, length, callback = rl )
             for alignedRead in rl.alignedReads:
-                # are we making a pileup?
-                if doCoverage:
-                    # numpy advanced slicing ftw!
-                    cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
-    
-                # no need to go here if the type is error
-                if bamType[0] != self.OT.ERROR:
-                    # strip off any trailing ".1, _1, /1" which may be at the end of the read id
-                    (query, end) = self.splitReadheader(alignedRead)
-                    if query in seen_reads:
-                        # we have a pair!
-                        # check to see they're on the same strand
-                        # rname is deprecated in pysam >= 0.4 use tid instead!
-                        if alignedRead.tid != seen_reads[query].tid:
-                            (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
-                            if LT != self.LT.ERROR:
-                                link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
-                                all_links.append(link)
-                    else:
-                        seen_reads[query] = alignedRead
+                
+                # make sure it is a mapped primary assignment
+                if not(alignedRead.is_unmapped or alignedRead.is_secondary):
+
+                    # are we making a pileup?
+                    if doCoverage:
+                        # numpy advanced slicing ftw!
+                        cov[alignedRead.pos:alignedRead.pos+alignedRead.rlen] += 1.0
+        
+                    # no need to go here if the type is error
+                    if bamType[0] != self.OT.ERROR:
+                        # strip off any trailing ".1, _1, /1" which may be at the end of the read id
+                        (query, end) = self.splitReadheader(alignedRead)
+                        if query in seen_reads:
+                            # we have a pair!
+                            # check to see they're on the same strand
+                            # rname is deprecated in pysam >= 0.4 use tid instead!
+                            if alignedRead.tid != seen_reads[query].tid:
+                                (gap, LT) = self.determineOTDifferentRefs(alignedRead, seen_reads[query], ref_lengths, bamType)
+                                if LT != self.LT.ERROR:
+                                    link = self.makeLink(bamFile.getrname(alignedRead.tid), bamFile.getrname(seen_reads[query].tid), LT, gap)
+                                    all_links.append(link)
+                        else:
+                            seen_reads[query] = alignedRead
             if(doCoverage):
                 cov_mean = np.mean(cov)
                 cov_std = np.std(cov)
