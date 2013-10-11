@@ -134,7 +134,7 @@ class BamParser:
 #------------------------------------------------------------------------------
 # Linking reads
 
-    def getLinks(self, bamFiles, full=False, verbose=False, doCoverage=False, minJoin=0):
+    def getLinks(self, bamFiles, full=False, verbose=False, doCoverage=False, doFragCountCoverage=False, minJoin=0):
         """Get all linking reads"""
         # first we need to know the types of reads we're dealing with
         bam_types = self.getTypes(bamFiles)
