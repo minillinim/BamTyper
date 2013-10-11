@@ -151,7 +151,7 @@ class BamParser:
                 if verbose:
                     print "    Parsing BAM '%s' (%d of %d)" % (getBamDescriptor(bf), (bam_count+1), num_bams)
                 if doCoverage:
-                    (links, coverage, lengths) = self.classifyBamLinks(bam_file, bam_types[bam_count], doCoverage=True)
+                    (links, coverage, lengths) = self.classifyBamLinks(bam_file, bam_types[bam_count], doCoverage=True, doFragCountCoverage=doFragCountCoverage)
                     all_links += links
                     total_coverages[bam_count] = coverage
                     for cid in lengths:
